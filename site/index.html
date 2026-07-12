@@ -95,10 +95,10 @@
     background: #8a8a99; border-radius: 2px; z-index: 2;
   }
   .beam {
-    position: absolute; left: 7px; top: 0; bottom: 0; border-radius: 7px;
+    position: absolute; left: 7px; top: .5px; bottom: .5px; border-radius: 7px;
     background: var(--beam, var(--blue));
-    box-shadow: 0 0 10px var(--beam, var(--blue)), 0 0 22px var(--beam, var(--blue));
-    animation: flicker 1.3s ease-in-out infinite;
+    box-shadow: 0 0 5px var(--beam, var(--blue)), 0 0 12px var(--beam, var(--blue));
+    animation: flicker .5s linear infinite;
   }
   .beam::before {
     content: ""; position: absolute; left: 3px; right: 3px; top: 3.5px; bottom: 3.5px;
@@ -110,10 +110,10 @@
     animation: pulse 1.6s linear infinite;
   }
   @keyframes flicker {
-    0%,100% { filter: brightness(1); }
-    45% { filter: brightness(1.25); }
-    47% { filter: brightness(.92); }
-    60% { filter: brightness(1.15); }
+    0%,100% { filter: brightness(1); transform: translateY(0); }
+    30% { filter: brightness(1.07); transform: translateY(-.3px); }
+    55% { filter: brightness(.97); transform: translateY(.3px); }
+    78% { filter: brightness(1.04); transform: translateY(0); }
   }
   @keyframes pulse { 0% { left: 2%; } 100% { left: 88%; } }
   .pct { color: var(--text); width: 84px; text-align: right; flex: none; font-size: 11px; }

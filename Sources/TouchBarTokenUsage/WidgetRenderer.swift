@@ -124,36 +124,42 @@ enum WidgetRenderer {
         let f = Double(frame)
         let liveliness = 0.35 + 0.65 * max(0, min(1, intensity))
         let maxBeam = rect.width - hiltWidth
-        let flicker = CGFloat((sin(f * 1.13) * 0.9 + sin(f * 2.71 + 1.4) * 0.6) * liveliness)
-        var beamWidth = maxBeam * CGFloat(max(0, min(1, fraction))) + flicker
+        // subtle high-frequency hum, not a hard flicker
+        let hum = CGFloat((sin(f * 1.7) * 0.35 + sin(f * 3.9 + 1.4) * 0.25) * liveliness)
+        var beamWidth = maxBeam * CGFloat(max(0, min(1, fraction))) + hum
         beamWidth = max(rect.height * 0.9, min(beamWidth, maxBeam))
-        let beamRect = NSRect(x: rect.minX + hiltWidth, y: rect.minY, width: beamWidth, height: rect.height)
-        let radius = rect.height / 2
+        let jitterY = CGFloat(sin(f * 5.3) * 0.3 * liveliness)
+        // slightly slimmer than the track, so it reads as a beam in a channel
+        let beamRect = NSRect(x: rect.minX + hiltWidth,
+                              y: rect.minY + 0.5 + jitterY,
+                              width: beamWidth,
+                              height: rect.height - 1)
+        let radius = beamRect.height / 2
         let color = fillColor(theme: theme, fraction: fraction)
 
-        // outer glow (breathes)
-        let breathe = CGFloat(0.5 + 0.5 * sin(f * 0.6))
-        color.withAlphaComponent(0.22 + 0.16 * breathe).setFill()
-        NSBezierPath(roundedRect: beamRect.insetBy(dx: -1.5, dy: -1.5),
-                     xRadius: radius + 1.5, yRadius: radius + 1.5).fill()
+        // thin outer glow (gentle breathing)
+        let breathe = CGFloat(0.5 + 0.5 * sin(f * 0.9))
+        color.withAlphaComponent(0.16 + 0.10 * breathe).setFill()
+        NSBezierPath(roundedRect: beamRect.insetBy(dx: -1, dy: -1),
+                     xRadius: radius + 1, yRadius: radius + 1).fill()
         // beam body
         color.withAlphaComponent(0.92).setFill()
         NSBezierPath(roundedRect: beamRect, xRadius: radius, yRadius: radius).fill()
         // white-hot core
-        let coreInset = rect.height * 0.28
+        let coreInset = beamRect.height * 0.3
         let coreRect = beamRect.insetBy(dx: 1.5, dy: coreInset)
         if coreRect.width > 2 {
             NSColor.white.withAlphaComponent(0.85).setFill()
             NSBezierPath(roundedRect: coreRect,
                          xRadius: coreRect.height / 2, yRadius: coreRect.height / 2).fill()
         }
-        // traveling energy pulse
+        // energy pulse — flows left → right only, then restarts
         if beamRect.width > rect.height * 2 {
-            let period = 36.0
+            let period = 34.0
             let t = CGFloat(f.truncatingRemainder(dividingBy: period) / period)
             let pulseWidth = rect.height
             let px = beamRect.minX + (beamRect.width - pulseWidth) * t
-            NSColor.white.withAlphaComponent(0.30 + 0.35 * CGFloat(max(0, min(1, intensity)))).setFill()
+            NSColor.white.withAlphaComponent(0.25 + 0.30 * CGFloat(max(0, min(1, intensity)))).setFill()
             NSBezierPath(ovalIn: NSRect(x: px, y: beamRect.minY + 0.5,
                                         width: pulseWidth, height: beamRect.height - 1)).fill()
         }
