@@ -109,7 +109,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         TBPSetControlStripPresence(Self.trayItemIdentifier, settings.showWidget)
         refreshSaberState()
         petView?.kind = settings.pet
-        petView?.color = settings.theme.pet
+        petView?.color = PetSprites.tint(for: settings.pet, themeColor: settings.theme.pet)
 
         let modeFull = settings.widgetModeIsFull
         if modeFull != appliedModeFull {
@@ -307,7 +307,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         let petImage = barsCompact ? nil : PetSprites.image(kind: settings.pet,
                                                             frame: frameIndex,
                                                             running: running,
-                                                            color: isAlert ? .white : theme.pet,
+                                                            color: isAlert ? .white : PetSprites.tint(for: settings.pet, themeColor: theme.pet),
                                                             cell: 2)
         button.image = WidgetRenderer.stripImage(theme: theme, petImage: petImage, content: stripContent())
     }
@@ -556,7 +556,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         updateCountdown()
 
         petView?.kind = settings.pet
-        petView?.color = settings.theme.pet
+        petView?.color = PetSprites.tint(for: settings.pet, themeColor: settings.theme.pet)
         petView?.running = !approvals.isEmpty || combinedRate >= 30
         petView?.fps = currentFPS
     }
@@ -575,7 +575,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             let item = NSCustomTouchBarItem(identifier: identifier)
             let view = AnimatedPetView(frame: NSRect(x: 0, y: 0, width: 44, height: 30))
             view.kind = settings.pet
-            view.color = settings.theme.pet
+            view.color = PetSprites.tint(for: settings.pet, themeColor: settings.theme.pet)
             view.fps = currentFPS
             view.start()
             petView = view
