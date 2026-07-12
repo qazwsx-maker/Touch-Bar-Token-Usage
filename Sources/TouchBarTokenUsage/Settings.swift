@@ -67,6 +67,7 @@ final class Settings: ObservableObject {
     @Published var showLimitBars: Bool { didSet { d.set(showLimitBars, forKey: "showLimitBars") } }
     @Published var expandedLayout: String { didSet { d.set(expandedLayout, forKey: "expandedLayout") } }
     @Published var resetStyle: String { didSet { d.set(resetStyle, forKey: "resetStyle") } }
+    @Published var widgetMode: String { didSet { d.set(widgetMode, forKey: "widgetMode") } }
     @Published var barStyle: String { didSet { d.set(barStyle, forKey: "barStyle") } }
     @Published var showModelOnBar: Bool { didSet { d.set(showModelOnBar, forKey: "showModelOnBar") } }
     @Published var fiveHourLimitTokens: Int { didSet { d.set(fiveHourLimitTokens, forKey: "fiveHourLimitTokens") } }
@@ -101,6 +102,7 @@ final class Settings: ObservableObject {
             "expandedLayout": "bars",
             "resetStyle": "remaining",
             "barStyle": "auto",
+            "widgetMode": "full",
             "showModelOnBar": true,
             "fiveHourLimitTokens": 0,
             "weeklyLimitTokens": 0,
@@ -131,6 +133,7 @@ final class Settings: ObservableObject {
         expandedLayout = d.string(forKey: "expandedLayout") ?? "bars"
         resetStyle = d.string(forKey: "resetStyle") ?? "remaining"
         barStyle = d.string(forKey: "barStyle") ?? "auto"
+        widgetMode = d.string(forKey: "widgetMode") ?? "full"
         showModelOnBar = d.bool(forKey: "showModelOnBar")
         fiveHourLimitTokens = d.integer(forKey: "fiveHourLimitTokens")
         weeklyLimitTokens = d.integer(forKey: "weeklyLimitTokens")
@@ -155,6 +158,7 @@ final class Settings: ObservableObject {
     var pet: PetKind { PetKind(rawValue: petID) ?? .penguin }
     var expandedLayoutIsBars: Bool { expandedLayout != "stats" }
     var resetStyleIsClock: Bool { resetStyle == "clock" }
+    var widgetModeIsFull: Bool { widgetMode != "compact" }
     var displayMetric: DisplayMetric { DisplayMetric(rawValue: metric) ?? .totalTokens }
     var energy: PetEnergy { PetEnergy(rawValue: petEnergy) ?? .normal }
 }
@@ -166,13 +170,26 @@ enum AppFmt {
         return f
     }()
 
-    /// "↻1:42" (time left) or "↻14:30" (clock), nil when there is no active
-    /// block or no limit history to compare against.
-    static func resetDisplay(resetAt: Date?, limit: Int, clock: Bool) -> String? {
-        guard let resetAt = resetAt, limit > 0 else { return nil }
+    static let weekdayTime: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEE HH:mm"
+        return f
+    }()
+
+    /// "↻1:42" / "↻2d15h" (time left) or "↻14:30" / "↻Sat 05:59" (clock).
+    /// nil when there is no data for that window yet.
+    static func resetDisplay(resetAt: Date?, hasData: Bool, clock: Bool) -> String? {
+        guard hasData, let resetAt = resetAt else { return nil }
+        let interval = resetAt.timeIntervalSinceNow
         if clock {
-            return "↻" + hourMinute.string(from: resetAt)
+            let formatter = interval > 20 * 3600 ? weekdayTime : hourMinute
+            return "↻" + formatter.string(from: resetAt)
         }
-        return "↻" + Fmt.remaining(resetAt.timeIntervalSinceNow)
+        if interval > 24 * 3600 {
+            let days = Int(interval) / 86400
+            let hours = (Int(interval) % 86400) / 3600
+            return "↻\(days)d\(hours)h"
+        }
+        return "↻" + Fmt.remaining(interval)
     }
 }

@@ -12,6 +12,7 @@ extension NSTouchBarItem.Identifier {
     static let tbtPass = NSTouchBarItem.Identifier("com.qazwsxmaker.tbtu.pass")
     static let tbtPrefs = NSTouchBarItem.Identifier("com.qazwsxmaker.tbtu.prefs")
     static let tbtClose = NSTouchBarItem.Identifier("com.qazwsxmaker.tbtu.close")
+    static let tbtCollapse = NSTouchBarItem.Identifier("com.qazwsxmaker.tbtu.collapse")
 }
 
 /// Owns the Control Strip widget and the full-width modal bar.
@@ -36,9 +37,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private var toastExpiry: Date?
 
     private var animTimer: Timer?
+    private var representTimer: Timer?
     private var frameIndex = 0
     private var alertPhase = false
     private var lastInterval: TimeInterval = 0
+    private var appliedModeFull = false
 
     private var petView: AnimatedPetView?
     private var statsLabel: NSTextField?
@@ -69,14 +72,30 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
         TBPAddSystemTrayItem(item)
         TBPSetControlStripPresence(Self.trayItemIdentifier, settings.showWidget)
-        TBPSetShowsCloseBoxWhenFrontMost(true)
+        appliedModeFull = settings.widgetModeIsFull
+        TBPSetShowsCloseBoxWhenFrontMost(!appliedModeFull)
 
         restartAnimation()
         redrawStrip()
+
+        if appliedModeFull {
+            presentModal(auto: false)
+        }
+        // Persistent mode: if the system dismisses our modal bar (esc, app
+        // takeovers, …), quietly bring it back.
+        let t = Timer(timeInterval: 2.0, repeats: true) { [weak self] _ in
+            guard let self = self, self.available, self.settings.widgetModeIsFull else { return }
+            if !(self.modalBar?.isVisible ?? false) {
+                self.presentModal(auto: false)
+            }
+        }
+        RunLoop.main.add(t, forMode: .common)
+        representTimer = t
     }
 
     func tearDown() {
         animTimer?.invalidate()
+        representTimer?.invalidate()
         guard available, let item = stripItem else { return }
         dismissModal()
         TBPSetControlStripPresence(Self.trayItemIdentifier, false)
@@ -90,6 +109,18 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         refreshSaberState()
         petView?.kind = settings.pet
         petView?.color = settings.theme.pet
+
+        let modeFull = settings.widgetModeIsFull
+        if modeFull != appliedModeFull {
+            appliedModeFull = modeFull
+            TBPSetShowsCloseBoxWhenFrontMost(!modeFull)
+            if modeFull {
+                presentModal(auto: false)
+            } else {
+                dismissModal()
+            }
+        }
+
         if modalPresented {
             refreshModalItems()
         }
@@ -223,14 +254,32 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         guard available, let button = stripButton else { return }
         let theme = settings.theme
         let isAlert = !approvals.isEmpty
+
+        // Full-width HUD mode: the tray slot only gets ~40pt in the collapsed
+        // Control Strip, so show a glanceable micro widget there.
+        if settings.widgetModeIsFull {
+            button.image = WidgetRenderer.microImage(theme: theme,
+                                                     five: snapshot.fiveHourFraction,
+                                                     week: snapshot.weeklyFraction,
+                                                     hasFive: snapshot.fiveHourHasData,
+                                                     hasWeek: snapshot.weeklyHasData,
+                                                     alert: isAlert,
+                                                     alertPhase: alertPhase,
+                                                     saber: saberOn,
+                                                     frame: frameIndex,
+                                                     intensity: saberIntensity)
+            return
+        }
+
         let running = isAlert || snapshot.ratePerMinute >= 30
-        // The Control Strip budget is ~100pt: shrink the pet when bars are on.
-        let petCell: CGFloat = (settings.showLimitBars && !isAlert && toast == nil) ? 1.6 : 2
-        let petImage = PetSprites.image(kind: settings.pet,
-                                        frame: frameIndex,
-                                        running: running,
-                                        color: isAlert ? .white : theme.pet,
-                                        cell: petCell)
+        // Compact mode: drop the pet from the bars layout — the expanded
+        // Control Strip grants only ~76pt (measured on hardware).
+        let barsCompact = settings.showLimitBars && !isAlert && toast == nil
+        let petImage = barsCompact ? nil : PetSprites.image(kind: settings.pet,
+                                                            frame: frameIndex,
+                                                            running: running,
+                                                            color: isAlert ? .white : theme.pet,
+                                                            cell: 2)
         button.image = WidgetRenderer.stripImage(theme: theme, petImage: petImage, content: stripContent())
     }
 
@@ -247,11 +296,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         // Bars mode: the compact widget is bars-only (model/token text lives
         // in the expanded bar and the menu bar — the strip is too narrow).
         if settings.showLimitBars, toast == nil {
-            var fiveLabel = snapshot.fiveHourLimit > 0 ? Fmt.percent(snapshot.fiveHourFraction) : "–"
+            var fiveLabel = snapshot.fiveHourHasData ? Fmt.percent(snapshot.fiveHourFraction) : "–"
             // The strip has no room for both — alternate % and reset time
             // inside the 5h bar every few seconds.
             if let reset = AppFmt.resetDisplay(resetAt: snapshot.fiveHourResetAt,
-                                               limit: snapshot.fiveHourLimit,
+                                               hasData: snapshot.fiveHourHasData,
                                                clock: settings.resetStyleIsClock),
                Int(Date().timeIntervalSince1970 / 4) % 2 == 1 {
                 fiveLabel = reset
@@ -260,7 +309,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 fiveFraction: snapshot.fiveHourFraction,
                 fiveLabel: fiveLabel,
                 weekFraction: snapshot.weeklyFraction,
-                weekLabel: snapshot.weeklyLimit > 0 ? Fmt.percent(snapshot.weeklyFraction) : "–",
+                weekLabel: snapshot.weeklyHasData ? Fmt.percent(snapshot.weeklyFraction) : "–",
                 saber: saberOn,
                 frame: frameIndex,
                 intensity: saberIntensity)
@@ -305,6 +354,10 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     @objc private func stripTapped() {
+        if settings.widgetModeIsFull {
+            presentModal(auto: false)
+            return
+        }
         if modalPresented {
             dismissModal()
         } else {
@@ -322,11 +375,14 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             modalBar = bar
         }
         refreshModalItems()
-        if !modalPresented {
+        // Trust the bar's actual visibility, not our flag — the system can
+        // dismiss a modal bar behind our back (esc, other takeovers).
+        let visible = modalBar?.isVisible ?? false
+        if !visible {
             TBPPresentSystemModal(modalBar!, Self.trayItemIdentifier)
-            modalPresented = true
             presentedAutomatically = auto
         }
+        modalPresented = true
     }
 
     func dismissModal() {
@@ -338,13 +394,14 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     private func refreshModalItems() {
         guard let bar = modalBar else { return }
+        let trailing: NSTouchBarItem.Identifier = settings.widgetModeIsFull ? .tbtCollapse : .tbtClose
         var ids: [NSTouchBarItem.Identifier]
         if !approvals.isEmpty {
-            ids = [.tbtPet, .tbtStats, .flexibleSpace, .tbtApprovalInfo, .tbtDeny, .tbtPass, .tbtAccept, .tbtClose]
+            ids = [.tbtPet, .tbtStats, .flexibleSpace, .tbtApprovalInfo, .tbtDeny, .tbtPass, .tbtAccept, trailing]
         } else if settings.expandedLayoutIsBars {
-            ids = [.tbtPet, .tbtFullBars, .tbtPrefs, .tbtClose]
+            ids = [.tbtPet, .tbtFullBars, .tbtPrefs, trailing]
         } else {
-            ids = [.tbtPet, .tbtStats, .flexibleSpace, .tbtPrefs, .tbtClose]
+            ids = [.tbtPet, .tbtStats, .flexibleSpace, .tbtPrefs, trailing]
         }
         if bar.defaultItemIdentifiers != ids {
             bar.defaultItemIdentifiers = ids
@@ -354,20 +411,24 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     private func updateModalContent() {
         let today = snapshot.today
+        let fiveReset = AppFmt.resetDisplay(resetAt: snapshot.fiveHourResetAt,
+                                            hasData: snapshot.fiveHourHasData,
+                                            clock: settings.resetStyleIsClock) ?? ""
+        let weekReset = AppFmt.resetDisplay(resetAt: snapshot.weeklyResetAt,
+                                            hasData: snapshot.weeklyHasData,
+                                            clock: settings.resetStyleIsClock) ?? ""
         var text: String
         if approvals.isEmpty {
             var pieces: [String] = []
-            if snapshot.fiveHourLimit > 0 {
+            if snapshot.fiveHourHasData {
                 var five = "5h \(Fmt.percent(snapshot.fiveHourFraction))"
-                if let reset = AppFmt.resetDisplay(resetAt: snapshot.fiveHourResetAt,
-                                                   limit: snapshot.fiveHourLimit,
-                                                   clock: settings.resetStyleIsClock) {
-                    five += " " + reset
-                }
+                if !fiveReset.isEmpty { five += " " + fiveReset }
                 pieces.append(five)
             }
-            if snapshot.weeklyLimit > 0 {
-                pieces.append("7d \(Fmt.percent(snapshot.weeklyFraction))")
+            if snapshot.weeklyHasData {
+                var week = "7d \(Fmt.percent(snapshot.weeklyFraction))"
+                if !weekReset.isEmpty { week += " " + weekReset }
+                pieces.append(week)
             }
             pieces.append("today \(Fmt.abbrev(today.totalTokens)) \(Fmt.money(today.costUSD))")
             pieces.append(Fmt.rate(snapshot.ratePerMinute))
@@ -379,10 +440,8 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             text = "Today \(Fmt.abbrev(today.totalTokens)) · \(Fmt.money(today.costUSD))"
         }
         statsLabel?.stringValue = text
-        let resetDisplay = AppFmt.resetDisplay(resetAt: snapshot.fiveHourResetAt,
-                                               limit: snapshot.fiveHourLimit,
-                                               clock: settings.resetStyleIsClock) ?? ""
-        fullBarsView?.apply(snapshot: snapshot, theme: settings.theme, resetDisplay: resetDisplay)
+        fullBarsView?.apply(snapshot: snapshot, theme: settings.theme,
+                            fiveReset: fiveReset, weekReset: weekReset)
         // Sync the beam state immediately — don't wait for the next tick.
         fullBarsView?.animate(frame: frameIndex, saber: saberOn, intensity: saberIntensity)
 
@@ -434,7 +493,10 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
         case .tbtFullBars:
             let item = NSCustomTouchBarItem(identifier: identifier)
-            let view = FullBarsView(frame: NSRect(x: 0, y: 0, width: 720, height: 30))
+            let view = FullBarsView(frame: NSRect(x: 0, y: 0, width: 620, height: 30))
+            // Let the bar squeeze this view instead of dropping it when the
+            // Touch Bar is narrower than our ideal width.
+            view.setContentCompressionResistancePriority(NSLayoutConstraint.Priority(240), for: .horizontal)
             fullBarsView = view
             item.view = view
             updateModalContent()
@@ -489,6 +551,12 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                                         target: self,
                                         action: #selector(closeTapped))
 
+        case .tbtCollapse:
+            return NSButtonTouchBarItem(identifier: identifier,
+                                        title: "−",
+                                        target: self,
+                                        action: #selector(collapseTapped))
+
         default:
             return nil
         }
@@ -512,5 +580,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     @objc private func closeTapped() {
         dismissModal()
+    }
+
+    @objc private func collapseTapped() {
+        // Switch to compact mode; applySettings (via the settings observer)
+        // dismisses the persistent bar.
+        settings.widgetMode = "compact"
     }
 }

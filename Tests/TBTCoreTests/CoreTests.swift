@@ -279,6 +279,34 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(Fmt.shortModel("claude-sonnet-5"), "sonnet-5")
     }
 
+    // MARK: - Quota parser
+
+    func testQuotaParserPercentShape() throws {
+        let json = """
+        {"five_hour":{"utilization":100,"resets_at":"2026-07-12T09:00:00Z"},
+         "seven_day":{"utilization":13,"resets_at":"2026-07-18T23:00:00Z"}}
+        """
+        let quota = try XCTUnwrap(QuotaParser.parse(Data(json.utf8)))
+        XCTAssertEqual(quota.fiveHour?.utilization ?? -1, 1.0, accuracy: 0.001)
+        XCTAssertEqual(quota.sevenDay?.utilization ?? -1, 0.13, accuracy: 0.001)
+        XCTAssertEqual(quota.fiveHour?.resetsAt, TranscriptParser.parseDate("2026-07-12T09:00:00Z"))
+    }
+
+    func testQuotaParserFractionAndNestedShape() throws {
+        let json = """
+        {"usage":{"five_hour":{"utilization":0.63},"seven_day":{"utilization":0.6,"resets_at":1789000000}}}
+        """
+        let quota = try XCTUnwrap(QuotaParser.parse(Data(json.utf8)))
+        XCTAssertEqual(quota.fiveHour?.utilization ?? -1, 0.63, accuracy: 0.001)
+        XCTAssertEqual(quota.sevenDay?.resetsAt?.timeIntervalSince1970 ?? -1, 1_789_000_000, accuracy: 1)
+    }
+
+    func testQuotaParserRejectsGarbage() {
+        XCTAssertNil(QuotaParser.parse(Data("not json".utf8)))
+        XCTAssertNil(QuotaParser.parse(Data("{}".utf8)))
+        XCTAssertNil(QuotaParser.parse(Data("{\"five_hour\":{}}".utf8)))
+    }
+
     // MARK: - Hook script
 
     func testHookScriptContent() {

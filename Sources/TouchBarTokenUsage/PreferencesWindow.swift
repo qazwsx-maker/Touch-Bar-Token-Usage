@@ -546,6 +546,13 @@ struct GeneralTab: View {
                 GroupBox(label: Text("Touch Bar widget")) {
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle("Show widget on Touch Bar", isOn: $settings.showWidget)
+                        Picker("Touch Bar mode", selection: $settings.widgetMode) {
+                            Text("Full-width HUD (always on)").tag("full")
+                            Text("Compact widget (tap to expand)").tag("compact")
+                        }
+                        Text("Full-width mode keeps 5H / 7D bars, TODAY and MODEL across the whole Touch Bar; the Control Strip slot shows a mini 2-bar widget.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                         Toggle("Compact widget: 5h / weekly limit bars", isOn: $settings.showLimitBars)
                         Picker("Tap-to-expand shows", selection: $settings.expandedLayout) {
                             Text("Big 5h / weekly bars").tag("bars")

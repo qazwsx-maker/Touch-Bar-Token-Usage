@@ -100,6 +100,8 @@ Requests are authenticated with a private token (`~/.claude/touchbar-usage/token
 
 ## 📐 How the limit bars work
 
+**Since v0.4.0 the bars show your real Claude quota whenever possible.** The app reads the Claude Code login that already lives on your Mac (`~/.claude/.credentials.json` or the "Claude Code-credentials" Keychain item — macOS may ask once to allow it) and polls Anthropic's own usage endpoint every minute: the exact same `100% · resets in 57 min` / `13% · resets Sat 05:59` numbers `/usage` shows in Claude Code. The token is only ever sent to `api.anthropic.com`, nowhere else. No login found? It falls back to the local estimates below.
+
 - **5h** — Claude-style session blocks (ccusage semantics): a block starts with your first message (floored to the hour), lasts 5 hours; a ≥ 5 h gap starts a new one. Reset time shows in the menu and the full bar.
 - **7d** — rolling 7-day sum.
 - **Limits** — set exact token budgets in *Preferences → General → Usage limits*, or leave **auto**: the bar compares against the highest usage ever recorded on your machine (expect it to look full the very first session — it calms down once you have history).

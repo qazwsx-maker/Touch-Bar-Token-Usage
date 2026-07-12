@@ -3,12 +3,13 @@ import Combine
 import TBTCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    static let version = "0.3.0"
+    static let version = "0.4.0"
 
     let settings = Settings.shared
     private let hookInstaller = HookInstaller()
 
     private var monitor: UsageMonitor!
+    private var quotaFetcher: QuotaFetcher!
     private var server: ApprovalServer!
     private var touchBarController: TouchBarController!
     private var statusController: StatusItemController!
@@ -81,11 +82,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.statusController.serverStatus = status
         }
 
+        quotaFetcher = QuotaFetcher()
+        quotaFetcher.onUpdate = { [weak self] quota, status in
+            self?.monitor.setQuota(quota)
+            self?.statusController.quotaStatus = status
+        }
+
         touchBarController.setUp()
         statusController.touchBarAvailable = touchBarController.available
         server.start()
         monitor.setCustomLimits(fiveHour: settings.fiveHourLimitTokens, weekly: settings.weeklyLimitTokens)
         monitor.start()
+        quotaFetcher.start()
 
         cancellable = settings.objectWillChange
             .receive(on: DispatchQueue.main)
@@ -116,6 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         touchBarController?.tearDown()
         server?.stop()
         monitor?.stop()
+        quotaFetcher?.stop()
     }
 
     private func terminateOtherInstances() {

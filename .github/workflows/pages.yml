@@ -30,7 +30,7 @@ jobs:
       - name: Assemble site
         run: |
           mkdir -p _site/img
-          cp site/index.html _site/
+          cp -R site/. _site/
           cp docs/img/*.svg _site/img/
 
       - uses: actions/configure-pages@v5

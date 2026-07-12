@@ -20,12 +20,19 @@ final class UsageMonitor {
         var fiveHourFraction: Double = 0
         var fiveHourResetAt: Date?
         var fiveHourLimitIsAuto = true
+        var fiveHourHasData = false
 
         // Rolling 7-day window.
         var weeklyTokens = 0
         var weeklyLimit = 0
         var weeklyFraction: Double = 0
+        var weeklyResetAt: Date?
         var weeklyLimitIsAuto = true
+        var weeklyHasData = false
+
+        /// "api" when percentages come straight from Claude's usage endpoint,
+        /// "local" when they are estimated from transcripts.
+        var quotaSource = "local"
     }
 
     var onUpdate: ((Snapshot) -> Void)?
@@ -54,6 +61,7 @@ final class UsageMonitor {
 
     private var customFiveHourLimit = 0
     private var customWeeklyLimit = 0
+    private var quota: Quota?
 
     private static let learnedFiveKey = "learnedMaxFiveHourTokens"
     private static let learnedWeekKey = "learnedMaxWeeklyTokens"
@@ -84,6 +92,18 @@ final class UsageMonitor {
         queue.async { [weak self] in
             self?.customFiveHourLimit = max(0, fiveHour)
             self?.customWeeklyLimit = max(0, weekly)
+        }
+    }
+
+    /// Real percentages from Claude's usage endpoint (nil = fall back to
+    /// local estimates). Triggers an immediate republish.
+    func setQuota(_ newQuota: Quota?) {
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            self.quota = newQuota
+            if self.firstScanDone {
+                self.publish(dataDirFound: !self.dataRoots().isEmpty)
+            }
         }
     }
 
@@ -262,6 +282,24 @@ final class UsageMonitor {
         snapshot.weeklyLimit = customWeeklyLimit > 0 ? customWeeklyLimit : learnedWeek
         if snapshot.weeklyLimit > 0 {
             snapshot.weeklyFraction = min(1, Double(snapshot.weeklyTokens) / Double(snapshot.weeklyLimit))
+        }
+        snapshot.fiveHourHasData = snapshot.fiveHourLimit > 0
+        snapshot.weeklyHasData = snapshot.weeklyLimit > 0
+
+        // Real quota from the API wins over local estimates.
+        if let quota = quota {
+            if let five = quota.fiveHour {
+                snapshot.fiveHourFraction = five.utilization
+                snapshot.fiveHourResetAt = five.resetsAt ?? snapshot.fiveHourResetAt
+                snapshot.fiveHourHasData = true
+                snapshot.quotaSource = "api"
+            }
+            if let seven = quota.sevenDay {
+                snapshot.weeklyFraction = seven.utilization
+                snapshot.weeklyResetAt = seven.resetsAt
+                snapshot.weeklyHasData = true
+                snapshot.quotaSource = "api"
+            }
         }
 
         let result = snapshot

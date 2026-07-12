@@ -16,6 +16,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     var onPresentBar: (() -> Void)?
     var hookInstalled: (() -> Bool)?
     var serverStatus = "starting…"
+    var quotaStatus = "starting…"
     var touchBarAvailable = false
 
     init(settings: Settings) {
@@ -80,10 +81,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if approvalCount > 0 {
             button.title = " ✋\(approvalCount)"
         } else if settings.menuBarShowsTokens {
-            // "63%/60%" = 5-hour block / weekly window.
-            if snapshot.fiveHourLimit > 0 || snapshot.weeklyLimit > 0 {
-                let five = snapshot.fiveHourLimit > 0 ? Fmt.percent(snapshot.fiveHourFraction) : "–"
-                let week = snapshot.weeklyLimit > 0 ? Fmt.percent(snapshot.weeklyFraction) : "–"
+            // "63%/60%" = 5-hour window / weekly window.
+            if snapshot.fiveHourHasData || snapshot.weeklyHasData {
+                let five = snapshot.fiveHourHasData ? Fmt.percent(snapshot.fiveHourFraction) : "–"
+                let week = snapshot.weeklyHasData ? Fmt.percent(snapshot.weeklyFraction) : "–"
                 button.title = " \(five)/\(week)"
             } else {
                 button.title = " " + Fmt.abbrev(snapshot.today.totalTokens)
@@ -120,21 +121,38 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let month = snapshot.month
         info("This month: \(Fmt.abbrev(month.totalTokens)) tokens · \(Fmt.money(month.costUSD))")
         info("Burn rate: \(Fmt.rate(snapshot.ratePerMinute))")
-        if snapshot.fiveHourLimit > 0 {
-            var line = "5-hour block: \(Fmt.abbrev(snapshot.fiveHourTokens)) / \(Fmt.abbrev(snapshot.fiveHourLimit))"
-                + " (\(Fmt.percent(snapshot.fiveHourFraction))\(snapshot.fiveHourLimitIsAuto ? " of your max" : ""))"
-            if let reset = AppFmt.resetDisplay(resetAt: snapshot.fiveHourResetAt,
-                                               limit: snapshot.fiveHourLimit,
-                                               clock: settings.resetStyleIsClock) {
-                line += " · \(reset)"
+        let fiveReset = AppFmt.resetDisplay(resetAt: snapshot.fiveHourResetAt,
+                                            hasData: snapshot.fiveHourHasData,
+                                            clock: settings.resetStyleIsClock)
+        let weekReset = AppFmt.resetDisplay(resetAt: snapshot.weeklyResetAt,
+                                            hasData: snapshot.weeklyHasData,
+                                            clock: settings.resetStyleIsClock)
+        if snapshot.quotaSource == "api" {
+            if snapshot.fiveHourHasData {
+                info("5-hour limit: \(Fmt.percent(snapshot.fiveHourFraction))"
+                    + (fiveReset.map { " · \($0)" } ?? ""))
             }
-            info(line)
+            if snapshot.weeklyHasData {
+                info("Weekly (all models): \(Fmt.percent(snapshot.weeklyFraction))"
+                    + (weekReset.map { " · \($0)" } ?? ""))
+            }
+            info("Quota: live from Claude API ✓")
         } else {
-            info("5-hour block: \(Fmt.abbrev(snapshot.fiveHourTokens)) (no history yet)")
-        }
-        if snapshot.weeklyLimit > 0 {
-            info("Weekly (7d): \(Fmt.abbrev(snapshot.weeklyTokens)) / \(Fmt.abbrev(snapshot.weeklyLimit))"
-                + " (\(Fmt.percent(snapshot.weeklyFraction))\(snapshot.weeklyLimitIsAuto ? " of your max" : ""))")
+            if snapshot.fiveHourHasData {
+                var line = "5-hour block: \(Fmt.abbrev(snapshot.fiveHourTokens)) / \(Fmt.abbrev(snapshot.fiveHourLimit))"
+                    + " (\(Fmt.percent(snapshot.fiveHourFraction))\(snapshot.fiveHourLimitIsAuto ? " of your max" : ""))"
+                if let reset = fiveReset {
+                    line += " · \(reset)"
+                }
+                info(line)
+            } else {
+                info("5-hour block: \(Fmt.abbrev(snapshot.fiveHourTokens)) (no history yet)")
+            }
+            if snapshot.weeklyHasData {
+                info("Weekly (7d): \(Fmt.abbrev(snapshot.weeklyTokens)) / \(Fmt.abbrev(snapshot.weeklyLimit))"
+                    + " (\(Fmt.percent(snapshot.weeklyFraction))\(snapshot.weeklyLimitIsAuto ? " of your max" : ""))")
+            }
+            info("Quota: \(quotaStatus)")
         }
         if let model = snapshot.lastModel {
             info("Model: \(model)")
