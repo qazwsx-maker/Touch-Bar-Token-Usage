@@ -142,31 +142,41 @@ enum WidgetRenderer {
         let radius = beamRect.height / 2
         let color = fillColor(theme: theme, fraction: fraction)
 
-        // thin outer glow (gentle breathing)
+        // hairline outer glow — barely spills past the top/bottom edges
         let breathe = CGFloat(0.5 + 0.5 * sin(f * 0.9))
         color.withAlphaComponent(0.16 + 0.10 * breathe).setFill()
-        NSBezierPath(roundedRect: beamRect.insetBy(dx: -1, dy: -1),
-                     xRadius: radius + 1, yRadius: radius + 1).fill()
+        NSBezierPath(roundedRect: beamRect.insetBy(dx: -1, dy: -0.5),
+                     xRadius: radius + 0.5, yRadius: radius + 0.5).fill()
         // beam body
         color.withAlphaComponent(0.92).setFill()
         NSBezierPath(roundedRect: beamRect, xRadius: radius, yRadius: radius).fill()
-        // white-hot core
-        let coreInset = beamRect.height * 0.3
+        // white-hot core, fat — leaves only a thin colored fringe
+        let coreInset = beamRect.height * 0.22
         let coreRect = beamRect.insetBy(dx: 1.5, dy: coreInset)
         if coreRect.width > 2 {
             NSColor.white.withAlphaComponent(0.85).setFill()
             NSBezierPath(roundedRect: coreRect,
                          xRadius: coreRect.height / 2, yRadius: coreRect.height / 2).fill()
         }
-        // energy pulse — flows left → right only, then restarts
+        // random energy packets streaming left → right; count, size and
+        // brightness reroll every pass (deterministic hash — no RNG state)
         if beamRect.width > rect.height * 2 {
-            let period = 34.0
-            let t = CGFloat(f.truncatingRemainder(dividingBy: period) / period)
-            let pulseWidth = rect.height
-            let px = beamRect.minX + (beamRect.width - pulseWidth) * t
-            NSColor.white.withAlphaComponent(0.25 + 0.30 * CGFloat(max(0, min(1, intensity)))).setFill()
-            NSBezierPath(ovalIn: NSRect(x: px, y: beamRect.minY + 0.5,
-                                        width: pulseWidth, height: beamRect.height - 1)).fill()
+            let clampedIntensity = max(0, min(1, intensity))
+            let blobCount = 1 + Int(0.5 + clampedIntensity * 1.6)
+            for i in 0..<blobCount {
+                let period = 16.0 / (1.0 + 0.30 * Double(i))
+                let progress = f / period + Double(i) * 0.37
+                let t = CGFloat(progress.truncatingRemainder(dividingBy: 1))
+                let cycle = progress.rounded(.down)
+                let seed = sin(cycle * 12.9898 + Double(i) * 78.233) * 43758.5453
+                let rnd = CGFloat(seed - seed.rounded(.down))
+                let pulseWidth = rect.height * (0.55 + 0.7 * rnd)
+                let px = beamRect.minX + (beamRect.width - pulseWidth) * t
+                let alpha = (0.18 + 0.32 * CGFloat(clampedIntensity)) * (0.5 + 0.5 * rnd)
+                NSColor.white.withAlphaComponent(alpha).setFill()
+                NSBezierPath(ovalIn: NSRect(x: px, y: beamRect.minY + 0.5,
+                                            width: pulseWidth, height: beamRect.height - 1)).fill()
+            }
         }
     }
 

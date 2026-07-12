@@ -97,17 +97,22 @@
   .beam {
     position: absolute; left: 7px; top: .5px; bottom: .5px; border-radius: 7px;
     background: var(--beam, var(--blue));
-    box-shadow: 0 0 5px var(--beam, var(--blue)), 0 0 12px var(--beam, var(--blue));
+    box-shadow: 0 0 4px var(--beam, var(--blue)), 0 0 9px var(--beam, var(--blue));
     animation: flicker .5s linear infinite;
   }
   .beam::before {
-    content: ""; position: absolute; left: 3px; right: 3px; top: 3.5px; bottom: 3.5px;
-    background: rgba(255,255,255,.9); border-radius: 3px;
+    content: ""; position: absolute; left: 3px; right: 3px; top: 2.5px; bottom: 2.5px;
+    background: rgba(255,255,255,.9); border-radius: 3.5px;
   }
   .beam::after {
     content: ""; position: absolute; top: 1px; bottom: 1px; width: 12px;
     background: radial-gradient(closest-side, rgba(255,255,255,.95), transparent);
-    animation: pulse 1.6s linear infinite;
+    animation: pulse .85s linear infinite;
+  }
+  .beam .blob {
+    position: absolute; top: 1.5px; bottom: 1.5px; width: 8px;
+    background: radial-gradient(closest-side, rgba(255,255,255,.8), transparent);
+    animation: pulse 1.35s linear infinite; animation-delay: -.6s;
   }
   @keyframes flicker {
     0%,100% { filter: brightness(1); transform: translateY(0); }
@@ -215,10 +220,10 @@
         </div>
         <div class="bars">
           <div class="barrow"><span class="lbl">5h</span>
-            <div class="track"><div class="hilt"></div><div class="beam" id="beam5" style="--beam:#0a84ff; width:63%"></div></div>
+            <div class="track"><div class="hilt"></div><div class="beam" id="beam5" style="--beam:#0a84ff; width:63%"><span class="blob"></span></div></div>
             <span class="pct" id="pct5">63% ↻1:42</span></div>
           <div class="barrow"><span class="lbl">7d</span>
-            <div class="track"><div class="hilt"></div><div class="beam" id="beam7" style="--beam:#0a84ff; width:60%; animation-delay:.4s"></div></div>
+            <div class="track"><div class="hilt"></div><div class="beam" id="beam7" style="--beam:#0a84ff; width:60%; animation-delay:.4s"><span class="blob" style="animation-delay:-.25s"></span></div></div>
             <span class="pct">60%</span></div>
         </div>
       </div>
