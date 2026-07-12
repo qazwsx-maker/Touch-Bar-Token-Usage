@@ -113,6 +113,11 @@ Everything lives in Preferences (menu bar 🐾 → `⌘,`):
 The app is signed ad-hoc, not notarized with Apple ($99/yr). Clearing the quarantine flag (or right-click → Open) is a one-time step. All code is open here if you'd rather audit and `make install` yourself.
 </details>
 
+<details><summary><b>I launched the app and… nothing happened</b></summary>
+
+The app has no Dock icon — it lives in the **menu bar**: look for the 🐾 paw at the top-right of the screen. Since v0.2.1, double-clicking the app again always brings up the Preferences window, and the window opens automatically the first time you run a new version. Also note that every freshly downloaded zip is quarantined again — re-run `xattr -cr /Applications/TouchBarTokenUsage.app` after each manual update.
+</details>
+
 <details><summary><b>The widget doesn't show up</b></summary>
 
 Touch Bar hardware required. Don't run Pock/MTMR at the same time — they use the same private `DFRFoundation` Control Strip API. Try quitting and reopening the app.
