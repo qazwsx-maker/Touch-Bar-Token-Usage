@@ -27,9 +27,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.autoenablesItems = false
         menu.delegate = self
         statusItem.menu = menu
-        statusItem.button?.image = Self.robotImage()
+        statusItem.button?.image = Self.icon(for: settings.pet)
         statusItem.button?.imagePosition = .imageLeft
         refreshTitle()
+    }
+
+    /// Menu bar icon follows the selected pet; robot when pets are off.
+    static func icon(for pet: PetKind) -> NSImage {
+        PetSprites.templateIcon(for: pet) ?? robotImage()
     }
 
     /// Little template robot: antenna, head with punched-out eyes, chin bar.
@@ -66,6 +71,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     func settingsChanged() {
+        statusItem.button?.image = Self.icon(for: settings.pet)
         refreshTitle()
     }
 

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Touch Bar Token Usage — Claude usage bars + one-tap Accept on your Touch Bar</title>
+<meta name="description" content="5h/weekly limit bars, lightsaber mode, pixel pets, and one-tap Accept/Deny for Claude Code — on the MacBook Pro Touch Bar.">
+<style>
+  :root {
+    --bg: #07070d;
+    --panel: #101018;
+    --line: #1e1e2c;
+    --text: #e8e8f2;
+    --sub: #8a8a99;
+    --cyan: #64d2ff;
+    --blue: #0a84ff;
+    --green: #00ff66;
+    --pink: #ff6b9d;
+    --amber: #ff9f0a;
+    --red: #ff453a;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+  /* CRT scanlines + vignette */
+  body::before {
+    content: "";
+    position: fixed; inset: 0; pointer-events: none; z-index: 999;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,.022) 0 1px, transparent 1px 3px);
+    mix-blend-mode: overlay;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
+
+  /* ---------- hero ---------- */
+  header { padding: 72px 0 28px; text-align: center; position: relative; }
+  .grid-bg {
+    position: absolute; inset: 0; z-index: -1; opacity: .35;
+    background:
+      linear-gradient(transparent 95%, rgba(100,210,255,.15) 95%) 0 0/100% 28px,
+      linear-gradient(90deg, transparent 95%, rgba(100,210,255,.12) 95%) 0 0/28px 100%;
+    mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 40%, transparent 100%);
+    -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 40%, transparent 100%);
+  }
+  .badge-line { color: var(--sub); font-size: 13px; letter-spacing: .12em; }
+  h1 {
+    font-size: clamp(28px, 6vw, 52px);
+    margin: 10px 0 6px;
+    letter-spacing: -.01em;
+    text-shadow: 0 0 24px rgba(100,210,255,.35);
+  }
+  h1 .tb { color: var(--cyan); }
+  .tagline { color: var(--sub); font-size: clamp(14px, 2.4vw, 17px); }
+  .tagline b { color: var(--text); }
+
+  /* ---------- touch bar demo ---------- */
+  .touchbar {
+    margin: 42px auto 10px;
+    max-width: 860px;
+    background: #000;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 7px 10px;
+    display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 18px 60px rgba(0,0,0,.6), 0 0 0 6px #17171f, 0 0 42px rgba(100,210,255,.08);
+    overflow: hidden;
+  }
+  .tb-esc { color: var(--sub); font-size: 12px; padding: 6px 12px; background: #17171c; border-radius: 6px; flex: none; }
+  .widget {
+    display: flex; align-items: center; gap: 8px;
+    background: #101014; border-radius: 8px; padding: 4px 10px 4px 6px;
+    flex: 1; min-width: 0;
+  }
+  .penguin { flex: none; width: 26px; height: 24px; position: relative; }
+  .penguin svg { position: absolute; inset: 0; }
+  .penguin svg:nth-child(1) { animation: pframe 0.5s steps(1) infinite; }
+  .penguin svg:nth-child(2) { animation: pframe2 0.5s steps(1) infinite; }
+  @keyframes pframe  { 0%,49% { opacity: 1 } 50%,100% { opacity: 0 } }
+  @keyframes pframe2 { 0%,49% { opacity: 0 } 50%,100% { opacity: 1 } }
+  .bars { flex: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .barrow { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+  .barrow .lbl { color: var(--sub); width: 20px; flex: none; }
+  .track {
+    position: relative; flex: 1; height: 12px; border-radius: 7px;
+    background: rgba(232,232,242,.10); overflow: visible;
+  }
+  .hilt {
+    position: absolute; left: 0; top: 1px; bottom: 1px; width: 7px;
+    background: #8a8a99; border-radius: 2px; z-index: 2;
+  }
+  .beam {
+    position: absolute; left: 7px; top: 0; bottom: 0; border-radius: 7px;
+    background: var(--beam, var(--blue));
+    box-shadow: 0 0 10px var(--beam, var(--blue)), 0 0 22px var(--beam, var(--blue));
+    animation: flicker 1.3s ease-in-out infinite;
+  }
+  .beam::before {
+    content: ""; position: absolute; left: 3px; right: 3px; top: 3.5px; bottom: 3.5px;
+    background: rgba(255,255,255,.9); border-radius: 3px;
+  }
+  .beam::after {
+    content: ""; position: absolute; top: 1px; bottom: 1px; width: 12px;
+    background: radial-gradient(closest-side, rgba(255,255,255,.95), transparent);
+    animation: pulse 1.6s linear infinite;
+  }
+  @keyframes flicker {
+    0%,100% { filter: brightness(1); }
+    45% { filter: brightness(1.25); }
+    47% { filter: brightness(.92); }
+    60% { filter: brightness(1.15); }
+  }
+  @keyframes pulse { 0% { left: 2%; } 100% { left: 88%; } }
+  .pct { color: var(--text); width: 84px; text-align: right; flex: none; font-size: 11px; }
+  .tb-keys { display: flex; gap: 8px; flex: none; }
+  .tb-keys span { width: 34px; height: 30px; background: #17171c; border-radius: 6px; display: grid; place-items: center; color: var(--sub); font-size: 13px; }
+  .caption { text-align: center; color: var(--sub); font-size: 12.5px; margin-bottom: 4px; }
+  .caption kbd { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; }
+
+  /* ---------- buttons ---------- */
+  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 30px 0 8px; }
+  .btn {
+    display: inline-block; padding: 12px 22px; border-radius: 10px;
+    text-decoration: none; font-weight: 700; font-size: 15px;
+    border: 1px solid var(--line); color: var(--text); background: var(--panel);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn.primary {
+    background: linear-gradient(135deg, var(--blue), var(--cyan));
+    color: #04121f; border: none;
+    box-shadow: 0 8px 28px rgba(10,132,255,.35);
+  }
+  .btn.primary:hover { box-shadow: 0 12px 34px rgba(100,210,255,.45); }
+  .sysreq { text-align: center; color: var(--sub); font-size: 12.5px; }
+
+  /* ---------- terminal ---------- */
+  section { padding: 46px 0; }
+  h2 { font-size: 22px; margin-bottom: 18px; }
+  h2 .hash { color: var(--green); }
+  .term {
+    background: #0b0b12; border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: 0 14px 44px rgba(0,0,0,.5);
+    overflow: hidden;
+  }
+  .term-bar { display: flex; align-items: center; gap: 7px; padding: 10px 14px; background: #14141c; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .dot.r { background: #ff5f57; } .dot.y { background: #febc2e; } .dot.g { background: #28c840; }
+  .term-title { color: var(--sub); font-size: 12px; margin-left: 8px; }
+  .term-body { padding: 18px; font-size: 13.5px; overflow-x: auto; }
+  .term-body .p { color: var(--green); }
+  .term-body .cmd { color: var(--text); white-space: pre; }
+  .term-body .out { color: var(--sub); }
+  .cursor { display: inline-block; width: 8px; height: 15px; background: var(--green); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .copy {
+    float: right; background: var(--panel); color: var(--cyan);
+    border: 1px solid var(--line); border-radius: 7px; padding: 5px 12px;
+    font-family: var(--mono); font-size: 12px; cursor: pointer;
+  }
+  .copy:hover { border-color: var(--cyan); }
+
+  /* ---------- features ---------- */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px;
+  }
+  .card h3 { font-size: 15px; margin-bottom: 6px; }
+  .card p { color: var(--sub); font-size: 13px; }
+  .card .em { font-size: 20px; margin-right: 6px; }
+
+  /* ---------- screenshots ---------- */
+  .shots { display: flex; flex-direction: column; gap: 14px; align-items: center; }
+  .shots img { max-width: 100%; border-radius: 10px; }
+  .shots .row { color: var(--sub); font-size: 12.5px; text-align: center; }
+
+  /* ---------- approve demo ---------- */
+  .approve {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: #000; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+  }
+  .approve .q { flex: 1; min-width: 200px; font-size: 13.5px; }
+  .abtn { border: none; border-radius: 8px; padding: 9px 16px; font-family: var(--mono); font-weight: 700; font-size: 13px; cursor: pointer; }
+  .abtn.ok { background: #30d158; color: #06230f; }
+  .abtn.no { background: var(--red); color: #fff; }
+  .abtn.pass { background: #3a3a42; color: #ddd; }
+  #verdict { font-size: 13px; min-width: 150px; }
+
+  footer { border-top: 1px solid var(--line); padding: 34px 0 60px; color: var(--sub); font-size: 13px; text-align: center; }
+  footer a { color: var(--cyan); text-decoration: none; }
+  .th { color: var(--sub); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="grid-bg"></div>
+  <div class="wrap">
+    <div class="badge-line">[ MacBook Pro · Touch Bar · macOS 12+ · 100% local ]</div>
+    <h1>Touch Bar <span class="tb">Token Usage</span></h1>
+    <p class="tagline">Claude Code usage bars · <b>one-tap Accept/Deny</b> · pixel pets · <b>lightsaber mode ⚔️</b><br>
+      <span class="th">เกจ token + ปุ่มอนุญาต Claude บน Touch Bar — ของเนิร์ด ทำโดยเนิร์ด 🤓</span></p>
+
+    <div class="touchbar" id="tbdemo">
+      <div class="tb-esc">esc</div>
+      <div class="widget">
+        <div class="penguin" id="penguin" title="click me">
+          <svg viewBox="0 0 12 11"><g fill="#64d2ff"><rect x="4" y="0" width="4" height="1"/><rect x="3" y="1" width="6" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="5" y="2" width="2" height="1"/><rect x="8" y="2" width="1" height="1"/><rect x="3" y="3" width="6" height="1"/><rect x="2" y="4" width="8" height="1"/><rect x="1" y="5" width="9" height="1"/><rect x="1" y="6" width="9" height="1"/><rect x="2" y="7" width="8" height="1"/><rect x="3" y="8" width="6" height="1"/><rect x="2" y="9" width="2" height="1"/><rect x="8" y="9" width="2" height="1"/><rect x="2" y="10" width="2" height="1"/></g></svg>
+          <svg viewBox="0 0 12 11"><g fill="#64d2ff"><rect x="4" y="0" width="4" height="1"/><rect x="3" y="1" width="6" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="5" y="2" width="2" height="1"/><rect x="8" y="2" width="1" height="1"/><rect x="3" y="3" width="6" height="1"/><rect x="2" y="4" width="8" height="1"/><rect x="2" y="5" width="9" height="1"/><rect x="2" y="6" width="9" height="1"/><rect x="2" y="7" width="8" height="1"/><rect x="3" y="8" width="6" height="1"/><rect x="2" y="9" width="2" height="1"/><rect x="8" y="9" width="2" height="1"/><rect x="8" y="10" width="2" height="1"/></g></svg>
+        </div>
+        <div class="bars">
+          <div class="barrow"><span class="lbl">5h</span>
+            <div class="track"><div class="hilt"></div><div class="beam" id="beam5" style="--beam:#0a84ff; width:63%"></div></div>
+            <span class="pct" id="pct5">63% ↻1:42</span></div>
+          <div class="barrow"><span class="lbl">7d</span>
+            <div class="track"><div class="hilt"></div><div class="beam" id="beam7" style="--beam:#0a84ff; width:60%; animation-delay:.4s"></div></div>
+            <span class="pct">60%</span></div>
+        </div>
+      </div>
+      <div class="tb-keys"><span>☀</span><span>🔊</span><span>🔇</span></div>
+    </div>
+    <p class="caption">live mock · the real thing runs on the actual Touch Bar — <kbd>tap</kbd> the widget to expand full-width bars</p>
+
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/qazwsx-maker/Touch-Bar-Token-Usage/releases/latest/download/TouchBarTokenUsage.zip">⬇ Download latest (.app, ~600 KB)</a>
+      <a class="btn" href="https://github.com/qazwsx-maker/Touch-Bar-Token-Usage">⌥ Source on GitHub</a>
+    </div>
+    <p class="sysreq">universal binary · Apple Silicon + Intel · unsigned (see install) · MIT</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2><span class="hash">#</span> Install in one paste</h2>
+    <div class="term">
+      <div class="term-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="term-title">zsh — 80×12</span>
+        <button class="copy" onclick="copyCmd(this)">copy</button></div>
+      <div class="term-body">
+        <div><span class="p">$</span> <span class="cmd" id="typed"></span><span class="cursor"></span></div>
+        <div class="out" id="termout"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2><span class="hash">#</span> Why your Touch Bar deserves this</h2>
+    <div class="grid">
+      <div class="card"><h3><span class="em">📊</span>5h / weekly limit bars</h3><p>ccusage-style session blocks with reset time (↻1:42 or ↻14:30 — your pick). Orange at 75%, red at 90%. Auto-learned or custom token limits.</p></div>
+      <div class="card"><h3><span class="em">✅</span>Accept / Deny on the bar</h3><p>Official Claude Code PreToolUse hook → localhost, token-authenticated. Tap ✓/✕/Pass. App closed? Everything falls back to the terminal. Zero risk.</p></div>
+      <div class="card"><h3><span class="em">⚔️</span>Lightsaber mode</h3><p>Bars become glowing beams — white-hot core, flicker, traveling pulses. Auto-ignites while you burn tokens hard. pew pew.</p></div>
+      <div class="card"><h3><span class="em">🐧</span>Pixel pets</h3><p>Penguin, dragon or ghost sprinting at your burn rate. The menu bar icon matches your pet. Chill/Normal/Hyper energy.</p></div>
+      <div class="card"><h3><span class="em">🎨</span>5 themes + custom</h3><p>Midnight, Matrix, Neon Sunset, Ocean, Mono — or roll your own colors with a live Touch Bar preview (works on non-Touch-Bar Macs).</p></div>
+      <div class="card"><h3><span class="em">🔒</span>100% local</h3><p>Reads ~/.claude/projects/**/*.jsonl on your machine. No accounts, no telemetry, no cloud. MIT licensed, ~600 KB.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2><span class="hash">#</span> Try the approval flow</h2>
+    <div class="approve">
+      <div class="q">🤖 <b>Bash · my-project</b>: <code>git push origin main</code></div>
+      <button class="abtn no" onclick="verdict('⛔ DENIED — Claude has been told. It will cope.')">✕ Deny</button>
+      <button class="abtn pass" onclick="verdict('↷ Passed — back to the terminal prompt.')">Pass 14s</button>
+      <button class="abtn ok" onclick="verdict('✅ ACCESS GRANTED — tool is running.')">✓ Accept</button>
+      <span id="verdict"></span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2><span class="hash">#</span> Screenshots (vector-accurate mocks)</h2>
+    <div class="shots">
+      <img src="img/fullbar-saber.svg" alt="Lightsaber bars" width="820">
+      <img src="img/fullbar.svg" alt="Full-width bars" width="820">
+      <img src="img/approval.svg" alt="Approval bar" width="820">
+      <div class="row">
+        <img src="img/themes.svg" alt="Themes" width="230">
+        <img src="img/pets.svg" alt="Pets" width="330">
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2><span class="hash">#</span> Setup for Claude approvals</h2>
+    <div class="term"><div class="term-body" style="font-size:13px">
+      <div><span class="p">1.</span> Launch the app → the window opens (menu bar icon = your pet 🐧)</div>
+      <div><span class="p">2.</span> Setup tab → <b>Install Claude Code hook</b> → <b>Send test approval request</b></div>
+      <div><span class="p">3.</span> Start a <b>new</b> Claude Code session → permission prompts hit your Touch Bar first</div>
+      <div class="out">// Pass or timeout (default 20s) = normal terminal prompt. App not running = hook exits silently.</div>
+    </div></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>MIT © qazwsx-maker · MacBook Pro with Touch Bar (2016–2020, incl. M1/M2 13″) · macOS 12+</p>
+    <p style="margin-top:6px"><a href="https://github.com/qazwsx-maker/Touch-Bar-Token-Usage">github.com/qazwsx-maker/Touch-Bar-Token-Usage</a></p>
+    <p class="th" style="margin-top:10px">สร้างด้วยความเนิร์ดล้วน ๆ — Touch Bar ยังไม่ตาย มันแค่รอ payload ที่คู่ควร ⚔️</p>
+  </div>
+</footer>
+
+<script>
+  // typing effect
+  var CMD = 'curl -L https://github.com/qazwsx-maker/Touch-Bar-Token-Usage/releases/latest/download/TouchBarTokenUsage.zip -o /tmp/tbtu.zip && ditto -x -k /tmp/tbtu.zip /Applications && xattr -cr /Applications/TouchBarTokenUsage.app && open /Applications/TouchBarTokenUsage.app';
+  var typed = document.getElementById('typed');
+  var out = document.getElementById('termout');
+  var i = 0;
+  (function type() {
+    if (i <= CMD.length) {
+      typed.textContent = CMD.slice(0, i);
+      i += (i < 8 ? 1 : 3);
+      setTimeout(type, 18);
+    } else {
+      out.innerHTML = '→ TouchBarTokenUsage.app installed. Look at your Touch Bar. 🐧<br>→ ติดตั้งเสร็จ มองไปที่ Touch Bar ได้เลย';
+    }
+  })();
+  function copyCmd(btn) {
+    navigator.clipboard.writeText(CMD).then(function () {
+      btn.textContent = 'copied ✓';
+      setTimeout(function () { btn.textContent = 'copy'; }, 1500);
+    });
+  }
+  function verdict(text) {
+    document.getElementById('verdict').textContent = text;
+  }
+  // click the penguin: hyper mode + bars go red like a real burn
+  var hyper = false;
+  document.getElementById('penguin').addEventListener('click', function () {
+    hyper = !hyper;
+    var b5 = document.getElementById('beam5'), b7 = document.getElementById('beam7');
+    document.querySelectorAll('.penguin svg').forEach(function (s) {
+      s.style.animationDuration = hyper ? '0.16s' : '0.5s';
+    });
+    b5.style.width = hyper ? '96%' : '63%';
+    b5.style.setProperty('--beam', hyper ? '#ff453a' : '#0a84ff');
+    b7.style.width = hyper ? '78%' : '60%';
+    b7.style.setProperty('--beam', hyper ? '#ff9f0a' : '#0a84ff');
+    document.getElementById('pct5').textContent = hyper ? '96% ↻0:12' : '63% ↻1:42';
+  });
+</script>
+</body>
+</html>

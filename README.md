@@ -10,6 +10,7 @@ With a pixel pet that runs faster while your tokens burn. 🔥
 [![Build](https://img.shields.io/github/actions/workflow/status/qazwsx-maker/Touch-Bar-Token-Usage/build.yml?branch=main&style=for-the-badge)](https://github.com/qazwsx-maker/Touch-Bar-Token-Usage/actions)
 [![Platform](https://img.shields.io/badge/macOS-12%2B%20·%20Touch%20Bar-1d1d2b?style=for-the-badge&logo=apple)](#requirements)
 [![License](https://img.shields.io/badge/license-MIT-30D158?style=for-the-badge)](LICENSE)
+[![Website](https://img.shields.io/badge/🌐_website-qazwsx--maker.github.io-64D2FF?style=for-the-badge)](https://qazwsx-maker.github.io/Touch-Bar-Token-Usage/)
 
 <br>
 
@@ -41,7 +42,7 @@ With a pixel pet that runs faster while your tokens burn. 🔥
 - ✅ **Accept / Deny from the Touch Bar** — a native [Claude Code hook](https://code.claude.com/docs/en/hooks) forwards permission prompts to the bar. Tap **✓ Accept**, **✕ Deny**, or **Pass** to fall back to the terminal. No keyboard injection, no focus stealing.
 - 🐧 **Pixel pets** — penguin, dragon, or ghost. Idle when you're idle, sprinting when tokens flow.
 - 🎨 **Themes** — five presets + fully custom colors, with a live preview right in Preferences (works on Macs without a Touch Bar too).
-- 📈 **Menu bar companion** — a little robot with live `63%/60%` (5h / weekly), plus today & month totals, cost, burn rate and block reset time in its menu.
+- 📈 **Menu bar companion** — your pet as the icon, live `63%/60%` (5h / weekly) next to it, plus today & month totals, cost, burn rate and block reset time in its menu.
 - 🔔 Extras — sound on new requests, "Claude finished" toasts, an optional on-screen approval panel, launch at login.
 - 🔒 **100 % local** — reads `~/.claude/projects/**/*.jsonl` only. Nothing ever leaves your Mac.
 
@@ -124,7 +125,7 @@ The app is signed ad-hoc, not notarized with Apple ($99/yr). Clearing the quaran
 
 <details><summary><b>I launched the app and… nothing happened</b></summary>
 
-The app has no Dock icon — it lives in the **menu bar**: look for the 🤖 robot at the top-right of the screen. Since v0.2.1, double-clicking the app again always brings up the Preferences window, and the window opens automatically the first time you run a new version. Also note that every freshly downloaded zip is quarantined again — re-run `xattr -cr /Applications/TouchBarTokenUsage.app` after each manual update.
+The app has no Dock icon — it lives in the **menu bar**: look for your pet (🐧 by default) at the top-right of the screen. Since v0.2.1, double-clicking the app again always brings up the Preferences window, and the window opens automatically the first time you run a new version. Also note that every freshly downloaded zip is quarantined again — re-run `xattr -cr /Applications/TouchBarTokenUsage.app` after each manual update.
 </details>
 
 <details><summary><b>The widget doesn't show up</b></summary>
