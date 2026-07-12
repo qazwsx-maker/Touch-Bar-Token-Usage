@@ -4,15 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Touch Bar Token Usage — Claude usage bars + one-tap Accept on your Touch Bar</title>
-<meta name="description" content="5h/weekly limit bars, lightsaber mode, pixel pets, and one-tap Accept/Deny for Claude Code — on the MacBook Pro Touch Bar.">
+<meta name="description" content="Live 5-hour & weekly limit bars, pixel pets, and one-tap Accept/Deny for Claude Code — on the MacBook Pro Touch Bar. 100% local.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Touch Bar Token Usage">
-<meta property="og:description" content="Claude usage bars · one-tap Accept/Deny · pixel pets · lightsaber mode ⚔️ — on the MacBook Pro Touch Bar. 100% local, MIT.">
+<meta property="og:description" content="Claude usage bars · one-tap Accept/Deny · pixel pets — on the MacBook Pro Touch Bar. 100% local, MIT.">
 <meta property="og:url" content="https://qazwsx-maker.github.io/Touch-Bar-Token-Usage/">
 <meta property="og:image" content="https://qazwsx-maker.github.io/Touch-Bar-Token-Usage/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Touch Bar Token Usage">
-<meta name="twitter:description" content="Claude usage bars · one-tap Accept/Deny · pixel pets · lightsaber mode ⚔️">
+<meta name="twitter:description" content="Claude usage bars · one-tap Accept/Deny · pixel pets — on the MacBook Pro Touch Bar">
 <meta name="twitter:image" content="https://qazwsx-maker.github.io/Touch-Bar-Token-Usage/og.png">
 <style>
   :root {
@@ -96,45 +96,28 @@
   .barrow { display: flex; align-items: center; gap: 8px; font-size: 11px; }
   .barrow .lbl { color: var(--sub); width: 20px; flex: none; }
   .track {
-    position: relative; flex: 1; height: 12px; border-radius: 7px;
-    background: rgba(232,232,242,.10); overflow: visible;
+    position: relative; flex: 1; height: 13px; border-radius: 7px;
+    background: rgba(232,232,242,.16); overflow: hidden; min-width: 70px;
+    box-shadow: inset 0 0 0 1px rgba(232,232,242,.07);
   }
-  .hilt {
-    position: absolute; left: 0; top: 1px; bottom: 1px; width: 7px;
-    background: #8a8a99; border-radius: 2px; z-index: 2;
+  .fill {
+    position: absolute; left: 0; top: 0; bottom: 0; border-radius: 7px;
+    background: var(--blue);
+    transition: width .3s ease, background .3s ease;
   }
-  .beam {
-    position: absolute; left: 7px; top: .5px; bottom: .5px; border-radius: 7px;
-    background: var(--beam, var(--blue));
-    box-shadow: 0 0 4px var(--beam, var(--blue)), 0 0 9px var(--beam, var(--blue));
-    animation: flicker .5s linear infinite;
-  }
-  .beam::before {
-    content: ""; position: absolute; left: 3px; right: 3px; top: 2.5px; bottom: 2.5px;
-    background: rgba(255,255,255,.9); border-radius: 3.5px;
-  }
-  .beam::after {
-    content: ""; position: absolute; top: 1px; bottom: 1px; width: 12px;
-    background: radial-gradient(closest-side, rgba(255,255,255,.95), transparent);
-    animation: pulse .85s linear infinite;
-  }
-  .beam .blob {
-    position: absolute; top: 1.5px; bottom: 1.5px; width: 8px;
-    background: radial-gradient(closest-side, rgba(255,255,255,.8), transparent);
-    animation: pulse 1.35s linear infinite; animation-delay: -.6s;
-  }
-  @keyframes flicker {
-    0%,100% { filter: brightness(1); transform: translateY(0); }
-    30% { filter: brightness(1.07); transform: translateY(-.3px); }
-    55% { filter: brightness(.97); transform: translateY(.3px); }
-    78% { filter: brightness(1.04); transform: translateY(0); }
-  }
-  @keyframes pulse { 0% { left: 2%; } 100% { left: 88%; } }
   .pct { color: var(--text); width: 84px; text-align: right; flex: none; font-size: 11px; }
   .tb-keys { display: flex; gap: 8px; flex: none; }
   .tb-keys span { width: 34px; height: 30px; background: #17171c; border-radius: 6px; display: grid; place-items: center; color: var(--sub); font-size: 13px; }
   .caption { text-align: center; color: var(--sub); font-size: 12.5px; margin-bottom: 4px; }
   .caption kbd { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; }
+  /* keep the demo bars readable on phones: drop decorative keys, give the track the width */
+  @media (max-width: 640px) {
+    .tb-esc, .tb-keys { display: none; }
+    .touchbar { padding: 7px 8px; }
+    .widget { padding: 5px 8px 5px 6px; }
+    .barrow { gap: 6px; }
+    .pct { width: 72px; font-size: 10.5px; }
+  }
 
   /* ---------- buttons ---------- */
   .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 30px 0 8px; }
@@ -207,7 +190,6 @@
 
   footer { border-top: 1px solid var(--line); padding: 34px 0 60px; color: var(--sub); font-size: 13px; text-align: center; }
   footer a { color: var(--cyan); text-decoration: none; }
-  .th { color: var(--sub); }
 </style>
 </head>
 <body>
@@ -217,8 +199,7 @@
   <div class="wrap">
     <div class="badge-line">[ MacBook Pro · Touch Bar · macOS 12+ · 100% local ]</div>
     <h1>Touch Bar <span class="tb">Token Usage</span></h1>
-    <p class="tagline">Claude Code usage bars · <b>one-tap Accept/Deny</b> · pixel pets · <b>lightsaber mode ⚔️</b><br>
-      <span class="th">เกจ token + ปุ่มอนุญาต Claude บน Touch Bar — ของเนิร์ด ทำโดยเนิร์ด 🤓</span></p>
+    <p class="tagline">Claude Code usage bars · <b>one-tap Accept/Deny</b> · pixel pets · custom themes</p>
 
     <div class="touchbar" id="tbdemo">
       <div class="tb-esc">esc</div>
@@ -226,10 +207,10 @@
         <div class="penguin" id="penguin" title="click me"><svg viewBox="0 0 16 8"><rect x="2" y="0" width="12" height="1" fill="#D97757"/><rect x="2" y="1" width="3" height="1" fill="#D97757"/><rect x="6" y="1" width="4" height="1" fill="#D97757"/><rect x="11" y="1" width="3" height="1" fill="#D97757"/><rect x="2" y="2" width="3" height="1" fill="#D97757"/><rect x="6" y="2" width="4" height="1" fill="#D97757"/><rect x="11" y="2" width="3" height="1" fill="#D97757"/><rect x="2" y="3" width="13" height="1" fill="#D97757"/><rect x="1" y="4" width="13" height="1" fill="#D97757"/><rect x="2" y="5" width="12" height="1" fill="#D97757"/><rect x="3" y="6" width="2" height="1" fill="#D97757"/><rect x="11" y="6" width="2" height="1" fill="#D97757"/><rect x="3" y="7" width="2" height="1" fill="#D97757"/><rect x="11" y="7" width="2" height="1" fill="#D97757"/></svg><svg viewBox="0 0 16 8"><rect x="2" y="0" width="12" height="1" fill="#D97757"/><rect x="2" y="1" width="3" height="1" fill="#D97757"/><rect x="6" y="1" width="4" height="1" fill="#D97757"/><rect x="11" y="1" width="3" height="1" fill="#D97757"/><rect x="2" y="2" width="3" height="1" fill="#D97757"/><rect x="6" y="2" width="4" height="1" fill="#D97757"/><rect x="11" y="2" width="3" height="1" fill="#D97757"/><rect x="2" y="3" width="13" height="1" fill="#D97757"/><rect x="1" y="4" width="13" height="1" fill="#D97757"/><rect x="2" y="5" width="12" height="1" fill="#D97757"/><rect x="4" y="6" width="2" height="1" fill="#D97757"/><rect x="10" y="6" width="2" height="1" fill="#D97757"/><rect x="4" y="7" width="1" height="1" fill="#D97757"/><rect x="11" y="7" width="1" height="1" fill="#D97757"/></svg></div>
         <div class="bars">
           <div class="barrow"><span class="lbl">5h</span>
-            <div class="track"><div class="hilt"></div><div class="beam" id="beam5" style="--beam:#0a84ff; width:63%"><span class="blob"></span></div></div>
+            <div class="track"><div class="fill" id="fill5" style="width:63%"></div></div>
             <span class="pct" id="pct5">63% ↻1:42</span></div>
           <div class="barrow"><span class="lbl">7d</span>
-            <div class="track"><div class="hilt"></div><div class="beam" id="beam7" style="--beam:#0a84ff; width:60%; animation-delay:.4s"><span class="blob" style="animation-delay:-.25s"></span></div></div>
+            <div class="track"><div class="fill" id="fill7" style="width:60%"></div></div>
             <span class="pct">60%</span></div>
         </div>
       </div>
@@ -265,8 +246,8 @@
     <div class="grid">
       <div class="card"><h3><span class="em">📊</span>5h / weekly limit bars</h3><p>ccusage-style session blocks with reset time (↻1:42 or ↻14:30 — your pick). Orange at 75%, red at 90%. Auto-learned or custom token limits.</p></div>
       <div class="card"><h3><span class="em">✅</span>Accept / Deny on the bar</h3><p>Official Claude Code PreToolUse hook → localhost, token-authenticated. Tap ✓/✕/Pass. App closed? Everything falls back to the terminal. Zero risk.</p></div>
-      <div class="card"><h3><span class="em">⚔️</span>Lightsaber mode</h3><p>Bars become glowing beams — white-hot core, flicker, traveling pulses. Auto-ignites while you burn tokens hard. pew pew.</p></div>
-      <div class="card"><h3><span class="em">🐧</span>Pixel pets</h3><p>Penguin, dragon or ghost sprinting at your burn rate. The menu bar icon matches your pet. Chill/Normal/Hyper energy.</p></div>
+      <div class="card"><h3><span class="em">📡</span>Your real Claude quota</h3><p>Uses the Claude Code login already on your Mac to show the same numbers as /usage — 5-hour & weekly percent with true reset times. No login? Local estimates kick in.</p></div>
+      <div class="card"><h3><span class="em">🧡</span>Pixel pets</h3><p>Clawd (the Claude Code mascot), penguin, dragon or ghost — sprinting at your burn rate. The menu bar icon matches your pet. Chill/Normal/Hyper energy.</p></div>
       <div class="card"><h3><span class="em">🎨</span>5 themes + custom</h3><p>Midnight, Matrix, Neon Sunset, Ocean, Mono — or roll your own colors with a live Touch Bar preview (works on non-Touch-Bar Macs).</p></div>
       <div class="card"><h3><span class="em">🔒</span>100% local</h3><p>Reads ~/.claude/projects/**/*.jsonl on your machine. No accounts, no telemetry, no cloud. MIT licensed, ~600 KB.</p></div>
     </div>
@@ -290,7 +271,6 @@
   <div class="wrap">
     <h2><span class="hash">#</span> Screenshots (vector-accurate mocks)</h2>
     <div class="shots">
-      <img src="img/fullbar-saber.svg" alt="Lightsaber bars" width="820">
       <img src="img/fullbar.svg" alt="Full-width bars" width="820">
       <img src="img/approval.svg" alt="Approval bar" width="820">
       <div class="row">
@@ -317,7 +297,7 @@
   <div class="wrap">
     <p>MIT © qazwsx-maker · MacBook Pro with Touch Bar (2016–2020, incl. M1/M2 13″) · macOS 12+</p>
     <p style="margin-top:6px"><a href="https://github.com/qazwsx-maker/Touch-Bar-Token-Usage">github.com/qazwsx-maker/Touch-Bar-Token-Usage</a></p>
-    <p class="th" style="margin-top:10px">สร้างด้วยความเนิร์ดล้วน ๆ — Touch Bar ยังไม่ตาย มันแค่รอ payload ที่คู่ควร ⚔️</p>
+    <p style="margin-top:10px">The Touch Bar isn't dead — it was just waiting for a worthy payload.</p>
   </div>
 </footer>
 
@@ -333,7 +313,7 @@
       i += (i < 8 ? 1 : 3);
       setTimeout(type, 18);
     } else {
-      out.innerHTML = '→ TouchBarTokenUsage.app installed. Look at your Touch Bar. 🐧<br>→ ติดตั้งเสร็จ มองไปที่ Touch Bar ได้เลย';
+      out.innerHTML = '→ TouchBarTokenUsage.app installed. Look at your Touch Bar. 🐧';
     }
   })();
   function copyCmd(btn) {
@@ -345,18 +325,18 @@
   function verdict(text) {
     document.getElementById('verdict').textContent = text;
   }
-  // click the penguin: hyper mode + bars go red like a real burn
+  // click the pet: hyper mode — bars jump like a real burn
   var hyper = false;
   document.getElementById('penguin').addEventListener('click', function () {
     hyper = !hyper;
-    var b5 = document.getElementById('beam5'), b7 = document.getElementById('beam7');
+    var b5 = document.getElementById('fill5'), b7 = document.getElementById('fill7');
     document.querySelectorAll('.penguin svg').forEach(function (s) {
       s.style.animationDuration = hyper ? '0.16s' : '0.5s';
     });
     b5.style.width = hyper ? '96%' : '63%';
-    b5.style.setProperty('--beam', hyper ? '#ff453a' : '#0a84ff');
+    b5.style.background = hyper ? 'var(--red)' : 'var(--blue)';
     b7.style.width = hyper ? '78%' : '60%';
-    b7.style.setProperty('--beam', hyper ? '#ff9f0a' : '#0a84ff');
+    b7.style.background = hyper ? 'var(--amber)' : 'var(--blue)';
     document.getElementById('pct5').textContent = hyper ? '96% ↻0:12' : '63% ↻1:42';
   });
 </script>
