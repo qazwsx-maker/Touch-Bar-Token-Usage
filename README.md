@@ -40,7 +40,7 @@ With a pixel pet that runs faster while your tokens burn. 🔥
 - ⚔️ **Lightsaber mode** — optionally render the bars as glowing animated energy beams (white-hot core, flicker, traveling pulses). Set to *Auto* and the sabers ignite only while you're burning tokens hard.
 - 🤖 **Active model** — the expanded bar and menu show whether you're burning `sonnet-5` or `opus-4-5` money.
 - ✅ **Accept / Deny from the Touch Bar** — a native [Claude Code hook](https://code.claude.com/docs/en/hooks) forwards permission prompts to the bar. Tap **✓ Accept**, **✕ Deny**, or **Pass** to fall back to the terminal. No keyboard injection, no focus stealing.
-- 🐧 **Pixel pets** — penguin, dragon, or ghost. Idle when you're idle, sprinting when tokens flow.
+- 🧡 **Pixel pets** — Clawd (the Claude Code mascot, always in its terracotta), penguin, dragon, or ghost. Idle when you're idle, sprinting when tokens flow.
 - 🎨 **Themes** — five presets + fully custom colors, with a live preview right in Preferences (works on Macs without a Touch Bar too).
 - 📈 **Menu bar companion** — your pet as the icon, live `63%/60%` (5h / weekly) next to it, plus today & month totals, cost, burn rate and block reset time in its menu.
 - 🔔 Extras — sound on new requests, "Claude finished" toasts, an optional on-screen approval panel, launch at login.

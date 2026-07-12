@@ -296,7 +296,7 @@ struct PetCell: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            PetAnimPreview(kind: kind, color: NSColor(hexString: currentPetHex))
+            PetAnimPreview(kind: kind, color: PetSprites.tint(for: kind, themeColor: NSColor(hexString: currentPetHex)))
                 .frame(width: 48, height: 32)
                 .background(RoundedRectangle(cornerRadius: 6).fill(Color.black))
             Text(kind.displayName).font(.caption)
@@ -399,7 +399,7 @@ final class WidgetPreviewView: NSView {
         let pet = PetSprites.image(kind: settings.pet,
                                    frame: frameIdx,
                                    running: true,
-                                   color: alertDemo ? .white : theme.pet,
+                                   color: alertDemo ? .white : PetSprites.tint(for: settings.pet, themeColor: theme.pet),
                                    cell: barsMode ? 1.6 : 2)
         var bars: WidgetRenderer.Bars?
         if barsMode {

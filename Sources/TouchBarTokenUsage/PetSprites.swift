@@ -1,6 +1,7 @@
 import AppKit
 
 enum PetKind: String, CaseIterable, Identifiable {
+    case clawd
     case penguin
     case dragon
     case ghost
@@ -10,6 +11,7 @@ enum PetKind: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
+        case .clawd: return "Clawd"
         case .penguin: return "Penguin"
         case .dragon: return "Dragon"
         case .ghost: return "Ghost"
@@ -19,6 +21,7 @@ enum PetKind: String, CaseIterable, Identifiable {
 
     var emoji: String {
         switch self {
+        case .clawd: return "🧡"
         case .penguin: return "🐧"
         case .dragon: return "🐲"
         case .ghost: return "👻"
@@ -35,14 +38,72 @@ struct PetSprite {
 /// Pixel-art pets rendered as single-color silhouettes ('#' = pixel,
 /// '.' = transparent — gaps double as eyes).
 enum PetSprites {
+    /// Clawd keeps the official terracotta no matter the theme.
+    static let clawdColor = NSColor(hexString: "#D97757")
+
+    /// Theme tint for a pet — Clawd overrides with its own color.
+    static func tint(for kind: PetKind, themeColor: NSColor) -> NSColor {
+        kind == .clawd ? clawdColor : themeColor
+    }
+
     static func sprite(for kind: PetKind) -> PetSprite? {
         switch kind {
+        case .clawd: return clawd
         case .penguin: return penguin
         case .dragon: return dragon
         case .ghost: return ghost
         case .none: return nil
         }
     }
+
+    // MARK: - Clawd (Claude Code mascot — eye holes, side nubs, stubby legs)
+
+    private static let clawd = PetSprite(
+        run: [
+            [
+                "..############..",
+                "..###.####.###..",
+                "..###.####.###..",
+                "..#############.",
+                ".#############..",
+                "..############..",
+                "...##......##...",
+                "...##......##...",
+            ],
+            [
+                "..############..",
+                "..###.####.###..",
+                "..###.####.###..",
+                "..#############.",
+                ".#############..",
+                "..############..",
+                "....##....##....",
+                "....#......#....",
+            ],
+        ],
+        idle: [
+            [
+                "..############..",
+                "..###.####.###..",
+                "..###.####.###..",
+                "..#############.",
+                ".#############..",
+                "..############..",
+                "...##......##...",
+                "...##......##...",
+            ],
+            [
+                "..############..",
+                "..############..",
+                "..############..",
+                "..#############.",
+                ".#############..",
+                "..############..",
+                "...##......##...",
+                "...##......##...",
+            ],
+        ]
+    )
 
     // MARK: - Penguin (eye holes at the top)
 
