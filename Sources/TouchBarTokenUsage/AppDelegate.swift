@@ -3,7 +3,7 @@ import Combine
 import TBTCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    static let version = "0.2.1"
+    static let version = "0.3.0"
 
     let settings = Settings.shared
     private let hookInstaller = HookInstaller()

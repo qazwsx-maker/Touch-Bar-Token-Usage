@@ -1,8 +1,11 @@
 import AppKit
 import TBTCore
 
-/// Composes the compact Control Strip widget image:
-/// [pet] [5h/7d limit bars] [model + info line]  (bars/model optional).
+/// Composes the compact Control Strip widget image.
+///
+/// The Control Strip only gives tray items ~100pt, so the compact layout is
+/// strictly budgeted: [small pet][two fat bars with labels+percent inside].
+/// Model/token text lives in the expanded bar and the menu bar instead.
 enum WidgetRenderer {
     struct Bars {
         var fiveFraction: Double
@@ -30,22 +33,94 @@ enum WidgetRenderer {
     }
 
     static func stripImage(theme: Theme, petImage: NSImage?, content: Content, height: CGFloat = 30) -> NSImage {
+        if content.alert || content.toast != nil || content.bars == nil {
+            return textImage(theme: theme, petImage: petImage, content: content, height: height)
+        }
+        return barsImage(theme: theme, petImage: petImage, bars: content.bars!, height: height)
+    }
+
+    // MARK: - Compact bars layout (fits the Control Strip budget)
+
+    private static func barsImage(theme: Theme, petImage: NSImage?, bars: Bars, height: CGFloat) -> NSImage {
+        let petWidth: CGFloat = petImage.map { $0.size.width + 4 } ?? 0
+        let barWidth: CGFloat = 64
+        let width = 5 + petWidth + barWidth + 5
+
+        let image = NSImage(size: NSSize(width: width, height: height))
+        image.lockFocus()
+        theme.background.setFill()
+        NSBezierPath(roundedRect: NSRect(x: 0, y: 1, width: width, height: height - 2),
+                     xRadius: 6, yRadius: 6).fill()
+
+        if let petImage = petImage {
+            petImage.draw(in: NSRect(x: 4,
+                                     y: (height - petImage.size.height) / 2,
+                                     width: petImage.size.width,
+                                     height: petImage.size.height))
+        }
+
+        let x = 5 + petWidth
+        drawInlineBar(theme: theme, label: "5h", fraction: bars.fiveFraction, pctText: bars.fiveLabel,
+                      in: NSRect(x: x, y: 16.5, width: barWidth, height: 8))
+        drawInlineBar(theme: theme, label: "7d", fraction: bars.weekFraction, pctText: bars.weekLabel,
+                      in: NSRect(x: x, y: 5, width: barWidth, height: 8))
+
+        image.unlockFocus()
+        return image
+    }
+
+    /// A fat rounded bar with its label inside-left and percent inside-right.
+    /// Text flips to the background color where it sits on the fill.
+    static func drawInlineBar(theme: Theme, label: String, fraction: Double, pctText: String, in rect: NSRect) {
+        theme.text.withAlphaComponent(0.18).setFill()
+        NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
+
+        let clamped = max(0, min(1, fraction))
+        if clamped > 0 {
+            fillColor(theme: theme, fraction: clamped).setFill()
+            let fillRect = NSRect(x: rect.minX, y: rect.minY,
+                                  width: max(rect.height, rect.width * CGFloat(clamped)),
+                                  height: rect.height)
+            NSBezierPath(roundedRect: fillRect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
+        }
+
+        let labelColor = clamped > 0.14 ? theme.background.withAlphaComponent(0.95) : theme.secondaryText
+        let labelString = NSAttributedString(string: label, attributes: [
+            .font: NSFont.systemFont(ofSize: 5.5, weight: .bold),
+            .foregroundColor: labelColor,
+        ])
+        labelString.draw(at: NSPoint(x: rect.minX + 4,
+                                     y: rect.midY - labelString.size().height / 2))
+
+        let pctColor = clamped > 0.66 ? theme.background : theme.text
+        let pctString = NSAttributedString(string: pctText, attributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 7, weight: .bold),
+            .foregroundColor: pctColor,
+        ])
+        pctString.draw(at: NSPoint(x: rect.maxX - pctString.size().width - 4,
+                                   y: rect.midY - pctString.size().height / 2))
+    }
+
+    static func fillColor(theme: Theme, fraction: Double) -> NSColor {
+        if fraction >= 0.9 { return theme.bad }
+        if fraction >= 0.75 { return .systemOrange }
+        return theme.accent
+    }
+
+    // MARK: - Text layout (alerts, toasts, bars-off mode)
+
+    private static func textImage(theme: Theme, petImage: NSImage?, content: Content, height: CGFloat) -> NSImage {
         var line1 = content.line1
         var line2 = content.line2
-        var bars = content.bars
         if let toast = content.toast, !content.alert {
             line1 = toast
             line2 = nil
-            bars = nil
-        }
-        if content.alert {
-            bars = nil
         }
 
         let textColor: NSColor = content.alert ? .white : theme.text
         let subColor: NSColor = content.alert ? NSColor.white.withAlphaComponent(0.85) : theme.secondaryText
         let attrs1: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: bars == nil ? 11.5 : 9.5, weight: .semibold),
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold),
             .foregroundColor: textColor,
         ]
         let attrs2: [NSAttributedString.Key: Any] = [
@@ -56,9 +131,8 @@ enum WidgetRenderer {
         let s2: NSAttributedString? = line2.map { NSAttributedString(string: $0, attributes: attrs2) }
 
         let petWidth: CGFloat = petImage.map { $0.size.width + 5 } ?? 0
-        let barsWidth: CGFloat = bars == nil ? 0 : 72
         let textWidth = max(s1.size().width, s2?.size().width ?? 0)
-        let width = max(56, 7 + petWidth + barsWidth + textWidth + 9)
+        let width = max(56, 6 + petWidth + textWidth + 8)
 
         let image = NSImage(size: NSSize(width: width, height: height))
         image.lockFocus()
@@ -74,73 +148,102 @@ enum WidgetRenderer {
                      xRadius: 6, yRadius: 6).fill()
 
         if let petImage = petImage {
-            petImage.draw(in: NSRect(x: 6,
+            petImage.draw(in: NSRect(x: 5,
                                      y: (height - petImage.size.height) / 2,
                                      width: petImage.size.width,
                                      height: petImage.size.height))
         }
 
-        var x = 7 + petWidth
-        if let bars = bars {
-            drawBarRow(theme: theme, label: "5h", fraction: bars.fiveFraction, text: bars.fiveLabel,
-                       x: x, y: 16.5, width: barsWidth - 6)
-            drawBarRow(theme: theme, label: "7d", fraction: bars.weekFraction, text: bars.weekLabel,
-                       x: x, y: 5.5, width: barsWidth - 6)
-            x += barsWidth
-        }
-
+        let tx = 6 + petWidth
         if let s2 = s2 {
-            s1.draw(at: NSPoint(x: x, y: 14.5))
-            s2.draw(at: NSPoint(x: x, y: 3))
+            s1.draw(at: NSPoint(x: tx, y: 14.5))
+            s2.draw(at: NSPoint(x: tx, y: 3))
         } else {
-            s1.draw(at: NSPoint(x: x, y: (height - s1.size().height) / 2))
+            s1.draw(at: NSPoint(x: tx, y: (height - s1.size().height) / 2))
         }
 
         image.unlockFocus()
         return image
     }
+}
 
-    /// One row: tiny label, progress track, percent text.
-    private static func drawBarRow(theme: Theme, label: String, fraction: Double, text: String,
-                                   x: CGFloat, y: CGFloat, width: CGFloat) {
-        let labelAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 6.5, weight: .semibold),
+/// Full-width 5h/weekly bars for the expanded (tap-to-open) touch bar:
+/// [pet]  5h [==============      ] 63%   —   Wk [======    ] 60%
+final class FullBarsView: NSView {
+    private var theme: Theme?
+    private var fiveFraction: Double = 0
+    private var weekFraction: Double = 0
+    private var fiveText = "–"
+    private var weekText = "–"
+    private var fiveDetail = ""
+
+    override var intrinsicContentSize: NSSize { NSSize(width: 720, height: 30) }
+
+    func apply(snapshot: UsageMonitor.Snapshot, theme: Theme) {
+        self.theme = theme
+        fiveFraction = snapshot.fiveHourFraction
+        weekFraction = snapshot.weeklyFraction
+        fiveText = snapshot.fiveHourLimit > 0 ? Fmt.percent(snapshot.fiveHourFraction) : "–"
+        weekText = snapshot.weeklyLimit > 0 ? Fmt.percent(snapshot.weeklyFraction) : "–"
+        if let reset = snapshot.fiveHourResetAt {
+            fiveDetail = "↻" + AppFmt.hourMinute.string(from: reset)
+        } else {
+            fiveDetail = ""
+        }
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let theme = theme else { return }
+        let gap: CGFloat = 26
+        let segWidth = (bounds.width - gap) / 2
+        drawSegment(label: "5h", fraction: fiveFraction, pctText: fiveText, detail: fiveDetail,
+                    in: NSRect(x: 0, y: 0, width: segWidth, height: bounds.height), theme: theme)
+        theme.secondaryText.withAlphaComponent(0.45).setFill()
+        NSRect(x: segWidth + gap / 2 - 4, y: bounds.midY - 1, width: 8, height: 2).fill()
+        drawSegment(label: "Wk", fraction: weekFraction, pctText: weekText, detail: "",
+                    in: NSRect(x: segWidth + gap, y: 0, width: segWidth, height: bounds.height), theme: theme)
+    }
+
+    private func drawSegment(label: String, fraction: Double, pctText: String, detail: String,
+                             in rect: NSRect, theme: Theme) {
+        let labelString = NSAttributedString(string: label, attributes: [
+            .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold),
             .foregroundColor: theme.secondaryText,
-        ]
-        let pctAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 6.5, weight: .semibold),
+        ])
+        var pctDisplay = pctText
+        if !detail.isEmpty {
+            pctDisplay += " " + detail
+        }
+        let pctString = NSAttributedString(string: pctDisplay, attributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold),
             .foregroundColor: theme.text,
-        ]
-        let labelString = NSAttributedString(string: label, attributes: labelAttrs)
-        let pctString = NSAttributedString(string: text, attributes: pctAttrs)
+        ])
 
-        let labelWidth: CGFloat = 11
-        let pctWidth: CGFloat = 21
-        let trackWidth = max(10, width - labelWidth - pctWidth - 4)
-        let barHeight: CGFloat = 5
+        let labelWidth: CGFloat = 27
+        let pctWidth = pctString.size().width + 8
+        let trackX = rect.minX + labelWidth
+        let trackWidth = max(40, rect.width - labelWidth - pctWidth)
+        let barHeight: CGFloat = 12
+        let barY = rect.midY - barHeight / 2
 
-        labelString.draw(at: NSPoint(x: x, y: y - 1.5))
+        labelString.draw(at: NSPoint(x: rect.minX,
+                                     y: rect.midY - labelString.size().height / 2))
 
-        let trackRect = NSRect(x: x + labelWidth, y: y, width: trackWidth, height: barHeight)
         theme.text.withAlphaComponent(0.16).setFill()
-        NSBezierPath(roundedRect: trackRect, xRadius: barHeight / 2, yRadius: barHeight / 2).fill()
+        NSBezierPath(roundedRect: NSRect(x: trackX, y: barY, width: trackWidth, height: barHeight),
+                     xRadius: barHeight / 2, yRadius: barHeight / 2).fill()
 
         let clamped = max(0, min(1, fraction))
         if clamped > 0 {
-            let fillColor: NSColor
-            if clamped >= 0.9 {
-                fillColor = theme.bad
-            } else if clamped >= 0.75 {
-                fillColor = .systemOrange
-            } else {
-                fillColor = theme.accent
-            }
-            let fillWidth = max(barHeight, trackWidth * CGFloat(clamped))
-            let fillRect = NSRect(x: trackRect.minX, y: y, width: fillWidth, height: barHeight)
-            fillColor.setFill()
-            NSBezierPath(roundedRect: fillRect, xRadius: barHeight / 2, yRadius: barHeight / 2).fill()
+            WidgetRenderer.fillColor(theme: theme, fraction: clamped).setFill()
+            NSBezierPath(roundedRect: NSRect(x: trackX, y: barY,
+                                             width: max(barHeight, trackWidth * CGFloat(clamped)),
+                                             height: barHeight),
+                         xRadius: barHeight / 2, yRadius: barHeight / 2).fill()
         }
 
-        pctString.draw(at: NSPoint(x: trackRect.maxX + 3, y: y - 1.5))
+        pctString.draw(at: NSPoint(x: trackX + trackWidth + 8,
+                                   y: rect.midY - pctString.size().height / 2))
     }
 }

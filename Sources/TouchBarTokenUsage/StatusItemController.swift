@@ -27,19 +27,29 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.autoenablesItems = false
         menu.delegate = self
         statusItem.menu = menu
-        statusItem.button?.image = Self.pawImage()
+        statusItem.button?.image = Self.robotImage()
         statusItem.button?.imagePosition = .imageLeft
         refreshTitle()
     }
 
-    static func pawImage() -> NSImage {
+    /// Little template robot: antenna, head with punched-out eyes, chin bar.
+    static func robotImage() -> NSImage {
         let image = NSImage(size: NSSize(width: 18, height: 18))
         image.lockFocus()
         NSColor.black.setFill()
-        NSBezierPath(ovalIn: NSRect(x: 4.5, y: 1.5, width: 9, height: 7.5)).fill()
-        NSBezierPath(ovalIn: NSRect(x: 1.8, y: 8.2, width: 4.2, height: 5.4)).fill()
-        NSBezierPath(ovalIn: NSRect(x: 6.9, y: 10.6, width: 4.2, height: 5.4)).fill()
-        NSBezierPath(ovalIn: NSRect(x: 12.0, y: 8.2, width: 4.2, height: 5.4)).fill()
+        // antenna stem + tip
+        NSRect(x: 8.3, y: 13.0, width: 1.4, height: 2.6).fill()
+        NSBezierPath(ovalIn: NSRect(x: 7.8, y: 15.2, width: 2.4, height: 2.4)).fill()
+        // head with even-odd eye holes
+        let head = NSBezierPath(roundedRect: NSRect(x: 2.2, y: 4.4, width: 13.6, height: 8.8),
+                                xRadius: 2.6, yRadius: 2.6)
+        head.append(NSBezierPath(ovalIn: NSRect(x: 5.3, y: 7.4, width: 2.9, height: 2.9)))
+        head.append(NSBezierPath(ovalIn: NSRect(x: 9.8, y: 7.4, width: 2.9, height: 2.9)))
+        head.windingRule = .evenOdd
+        head.fill()
+        // chin bar
+        NSBezierPath(roundedRect: NSRect(x: 5.2, y: 1.4, width: 7.6, height: 2.2),
+                     xRadius: 1.1, yRadius: 1.1).fill()
         image.unlockFocus()
         image.isTemplate = true
         return image
@@ -64,7 +74,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if approvalCount > 0 {
             button.title = " ✋\(approvalCount)"
         } else if settings.menuBarShowsTokens {
-            button.title = " " + Fmt.abbrev(snapshot.today.totalTokens)
+            // "63%/60%" = 5-hour block / weekly window.
+            if snapshot.fiveHourLimit > 0 || snapshot.weeklyLimit > 0 {
+                let five = snapshot.fiveHourLimit > 0 ? Fmt.percent(snapshot.fiveHourFraction) : "–"
+                let week = snapshot.weeklyLimit > 0 ? Fmt.percent(snapshot.weeklyFraction) : "–"
+                button.title = " \(five)/\(week)"
+            } else {
+                button.title = " " + Fmt.abbrev(snapshot.today.totalTokens)
+            }
         } else {
             button.title = ""
         }
