@@ -210,9 +210,18 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         // Bars mode: the compact widget is bars-only (model/token text lives
         // in the expanded bar and the menu bar — the strip is too narrow).
         if settings.showLimitBars, toast == nil {
+            var fiveLabel = snapshot.fiveHourLimit > 0 ? Fmt.percent(snapshot.fiveHourFraction) : "–"
+            // The strip has no room for both — alternate % and reset time
+            // inside the 5h bar every few seconds.
+            if let reset = AppFmt.resetDisplay(resetAt: snapshot.fiveHourResetAt,
+                                               limit: snapshot.fiveHourLimit,
+                                               clock: settings.resetStyleIsClock),
+               Int(Date().timeIntervalSince1970 / 4) % 2 == 1 {
+                fiveLabel = reset
+            }
             let bars = WidgetRenderer.Bars(
                 fiveFraction: snapshot.fiveHourFraction,
-                fiveLabel: snapshot.fiveHourLimit > 0 ? Fmt.percent(snapshot.fiveHourFraction) : "–",
+                fiveLabel: fiveLabel,
                 weekFraction: snapshot.weeklyFraction,
                 weekLabel: snapshot.weeklyLimit > 0 ? Fmt.percent(snapshot.weeklyFraction) : "–")
             return WidgetRenderer.Content(bars: bars, line1: "", line2: nil,
@@ -310,8 +319,10 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             var pieces: [String] = []
             if snapshot.fiveHourLimit > 0 {
                 var five = "5h \(Fmt.percent(snapshot.fiveHourFraction))"
-                if let reset = snapshot.fiveHourResetAt {
-                    five += "↻\(AppFmt.hourMinute.string(from: reset))"
+                if let reset = AppFmt.resetDisplay(resetAt: snapshot.fiveHourResetAt,
+                                                   limit: snapshot.fiveHourLimit,
+                                                   clock: settings.resetStyleIsClock) {
+                    five += " " + reset
                 }
                 pieces.append(five)
             }
@@ -328,7 +339,10 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             text = "Today \(Fmt.abbrev(today.totalTokens)) · \(Fmt.money(today.costUSD))"
         }
         statsLabel?.stringValue = text
-        fullBarsView?.apply(snapshot: snapshot, theme: settings.theme)
+        let resetDisplay = AppFmt.resetDisplay(resetAt: snapshot.fiveHourResetAt,
+                                               limit: snapshot.fiveHourLimit,
+                                               clock: settings.resetStyleIsClock) ?? ""
+        fullBarsView?.apply(snapshot: snapshot, theme: settings.theme, resetDisplay: resetDisplay)
 
         if let first = approvals.first {
             var info = "🤖 \(first.title): \(first.detail)"

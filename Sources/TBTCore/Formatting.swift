@@ -46,6 +46,14 @@ public enum Fmt {
         return String(s.prefix(max - 1)) + "…"
     }
 
+    /// 6120s -> "1:42" (h:mm until reset). Negative intervals clamp to "0:00".
+    public static func remaining(_ interval: TimeInterval) -> String {
+        let total = Swift.max(0, Int(interval.rounded()))
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        return String(format: "%d:%02d", hours, minutes)
+    }
+
     /// 0.623 -> "62%". Values above 9.99 are capped at "999%".
     public static func percent(_ fraction: Double) -> String {
         let pct = Swift.max(0, Swift.min(fraction, 9.99)) * 100

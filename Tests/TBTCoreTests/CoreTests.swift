@@ -262,6 +262,14 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(SessionBlocks.tokens(inLast: 7 * 24 * 3600, events: events, now: date(0)), 150)
     }
 
+    func testRemainingFormat() {
+        XCTAssertEqual(Fmt.remaining(6120), "1:42")
+        XCTAssertEqual(Fmt.remaining(45 * 60), "0:45")
+        XCTAssertEqual(Fmt.remaining(5 * 3600), "5:00")
+        XCTAssertEqual(Fmt.remaining(29), "0:00")
+        XCTAssertEqual(Fmt.remaining(-10), "0:00")
+    }
+
     func testPercentAndShortModel() {
         XCTAssertEqual(Fmt.percent(0.623), "62%")
         XCTAssertEqual(Fmt.percent(0), "0%")

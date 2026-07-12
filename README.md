@@ -108,7 +108,7 @@ Everything lives in Preferences (menu bar 🤖 → `⌘,`):
 | **Setup** | Status lights, hook install, test request, live Touch Bar preview |
 | **Appearance** | Theme (5 presets + custom colors), pet, animation energy |
 | **Approvals** | Enable/disable, decision timeout, tool regex, auto-pass Bash prefixes, port, sounds, on-screen panel |
-| **General** | Compact bars on/off, tap-to-expand layout (big bars / stats text), custom token limits, text-mode metric & model, menu bar %, launch at login |
+| **General** | Compact bars on/off, tap-to-expand layout (big bars / stats text), reset display (time left ↻1:42 / clock ↻14:30), custom token limits, text-mode metric & model, menu bar %, launch at login |
 
 ## 🧯 FAQ
 

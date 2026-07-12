@@ -388,7 +388,13 @@ final class WidgetPreviewView: NSView {
                                    cell: barsMode ? 1.6 : 2)
         var bars: WidgetRenderer.Bars?
         if barsMode {
-            bars = WidgetRenderer.Bars(fiveFraction: 0.63, fiveLabel: "63%",
+            let fiveLabel: String
+            if Int(Date().timeIntervalSince1970 / 4) % 2 == 1 {
+                fiveLabel = settings.resetStyleIsClock ? "↻14:30" : "↻1:42"
+            } else {
+                fiveLabel = "63%"
+            }
+            bars = WidgetRenderer.Bars(fiveFraction: 0.63, fiveLabel: fiveLabel,
                                        weekFraction: 0.60, weekLabel: "60%")
         }
         let line1: String
@@ -527,6 +533,13 @@ struct GeneralTab: View {
                             Text("Big 5h / weekly bars").tag("bars")
                             Text("Stats text line").tag("stats")
                         }
+                        Picker("Reset time shows", selection: $settings.resetStyle) {
+                            Text("Time left (↻1:42)").tag("remaining")
+                            Text("Clock time (↻14:30)").tag("clock")
+                        }
+                        Text("On the compact widget the 5h bar alternates between % and reset time every few seconds.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                         Text("When limit bars are off, the compact widget shows text instead:")
                             .font(.caption)
                             .foregroundColor(.secondary)

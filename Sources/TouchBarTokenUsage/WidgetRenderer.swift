@@ -179,17 +179,13 @@ final class FullBarsView: NSView {
 
     override var intrinsicContentSize: NSSize { NSSize(width: 720, height: 30) }
 
-    func apply(snapshot: UsageMonitor.Snapshot, theme: Theme) {
+    func apply(snapshot: UsageMonitor.Snapshot, theme: Theme, resetDisplay: String) {
         self.theme = theme
         fiveFraction = snapshot.fiveHourFraction
         weekFraction = snapshot.weeklyFraction
         fiveText = snapshot.fiveHourLimit > 0 ? Fmt.percent(snapshot.fiveHourFraction) : "–"
         weekText = snapshot.weeklyLimit > 0 ? Fmt.percent(snapshot.weeklyFraction) : "–"
-        if let reset = snapshot.fiveHourResetAt {
-            fiveDetail = "↻" + AppFmt.hourMinute.string(from: reset)
-        } else {
-            fiveDetail = ""
-        }
+        fiveDetail = resetDisplay
         needsDisplay = true
     }
 

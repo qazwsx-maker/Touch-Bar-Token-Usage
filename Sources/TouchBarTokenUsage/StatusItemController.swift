@@ -117,8 +117,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if snapshot.fiveHourLimit > 0 {
             var line = "5-hour block: \(Fmt.abbrev(snapshot.fiveHourTokens)) / \(Fmt.abbrev(snapshot.fiveHourLimit))"
                 + " (\(Fmt.percent(snapshot.fiveHourFraction))\(snapshot.fiveHourLimitIsAuto ? " of your max" : ""))"
-            if let reset = snapshot.fiveHourResetAt {
-                line += " · resets \(AppFmt.hourMinute.string(from: reset))"
+            if let reset = AppFmt.resetDisplay(resetAt: snapshot.fiveHourResetAt,
+                                               limit: snapshot.fiveHourLimit,
+                                               clock: settings.resetStyleIsClock) {
+                line += " · \(reset)"
             }
             info(line)
         } else {
