@@ -36,6 +36,7 @@ final class ApprovalServer {
     var onServerState: ((String) -> Void)?
 
     private var listener: NWListener?
+    private var startAttemptsLeft = 0
 
     /// A hook call waiting for a human decision. Holds its connection
     /// strongly so the long-poll socket stays open.
@@ -59,6 +60,11 @@ final class ApprovalServer {
     var currentQueue: [ApprovalRequest] { pendings.map { $0.request } }
 
     func start() {
+        startAttemptsLeft = 3
+        startListener()
+    }
+
+    private func startListener() {
         stopListener()
         do {
             let params = NWParameters.tcp
@@ -73,9 +79,20 @@ final class ApprovalServer {
                 guard let self = self else { return }
                 switch state {
                 case .ready:
+                    self.startAttemptsLeft = 3
                     self.onServerState?("listening on 127.0.0.1:\(self.config.port)")
                 case .failed(let error):
-                    self.onServerState?("failed: \(error.localizedDescription)")
+                    // The port can linger briefly while an old instance shuts
+                    // down (e.g. right after an upgrade) — retry a few times.
+                    if self.startAttemptsLeft > 0 {
+                        self.startAttemptsLeft -= 1
+                        self.onServerState?("port busy — retrying…")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                            self?.startListener()
+                        }
+                    } else {
+                        self.onServerState?("failed: \(error.localizedDescription)")
+                    }
                 default:
                     break
                 }

@@ -189,6 +189,21 @@ struct AppearanceTab: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
+                GroupBox(label: Text("Bar style")) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Picker("Limit bars look like", selection: $settings.barStyle) {
+                            Text("Classic").tag("classic")
+                            Text("Lightsaber ⚔️").tag("saber")
+                            Text("Auto — lightsaber while burning hard").tag("auto")
+                        }
+                        Text("The beam flickers and fires energy pulses; the harder you burn tokens, the wilder it gets.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
                 GroupBox(label: Text("Pet")) {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(spacing: 8) {
@@ -380,14 +395,25 @@ final class WidgetPreviewView: NSView {
 
     func refresh() {
         let theme = settings.theme
+        let barsMode = settings.showLimitBars && !alertDemo
         let pet = PetSprites.image(kind: settings.pet,
                                    frame: frameIdx,
                                    running: true,
-                                   color: alertDemo ? .white : theme.pet)
+                                   color: alertDemo ? .white : theme.pet,
+                                   cell: barsMode ? 1.6 : 2)
         var bars: WidgetRenderer.Bars?
-        if settings.showLimitBars && !alertDemo {
-            bars = WidgetRenderer.Bars(fiveFraction: 0.62, fiveLabel: "62%",
-                                       weekFraction: 0.34, weekLabel: "34%")
+        if barsMode {
+            let fiveLabel: String
+            if Int(Date().timeIntervalSince1970 / 4) % 2 == 1 {
+                fiveLabel = settings.resetStyleIsClock ? "↻14:30" : "↻1:42"
+            } else {
+                fiveLabel = "63%"
+            }
+            bars = WidgetRenderer.Bars(fiveFraction: 0.63, fiveLabel: fiveLabel,
+                                       weekFraction: 0.60, weekLabel: "60%",
+                                       saber: settings.barStyle != "classic",
+                                       frame: frameIdx,
+                                       intensity: 0.8)
         }
         let line1: String
         if alertDemo {
@@ -520,15 +546,29 @@ struct GeneralTab: View {
                 GroupBox(label: Text("Touch Bar widget")) {
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle("Show widget on Touch Bar", isOn: $settings.showWidget)
-                        Toggle("Show 5h / weekly limit bars", isOn: $settings.showLimitBars)
-                        Toggle("Show current model", isOn: $settings.showModelOnBar)
-                        Picker("Info line shows", selection: $settings.metric) {
+                        Toggle("Compact widget: 5h / weekly limit bars", isOn: $settings.showLimitBars)
+                        Picker("Tap-to-expand shows", selection: $settings.expandedLayout) {
+                            Text("Big 5h / weekly bars").tag("bars")
+                            Text("Stats text line").tag("stats")
+                        }
+                        Picker("Reset time shows", selection: $settings.resetStyle) {
+                            Text("Time left (↻1:42)").tag("remaining")
+                            Text("Clock time (↻14:30)").tag("clock")
+                        }
+                        Text("On the compact widget the 5h bar alternates between % and reset time every few seconds.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("When limit bars are off, the compact widget shows text instead:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Toggle("Text mode: show current model", isOn: $settings.showModelOnBar)
+                        Picker("Text mode metric", selection: $settings.metric) {
                             ForEach(DisplayMetric.allCases) { metric in
                                 Text(metric.label).tag(metric.rawValue)
                             }
                         }
-                        Toggle("Info line: today's cost", isOn: $settings.showCostLine)
-                        Toggle("Info line: burn rate", isOn: $settings.showRateLine)
+                        Toggle("Text mode: today's cost", isOn: $settings.showCostLine)
+                        Toggle("Text mode: burn rate", isOn: $settings.showRateLine)
                     }
                     .padding(6)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -555,7 +595,10 @@ struct GeneralTab: View {
 
                 GroupBox(label: Text("Menu bar")) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Toggle("Show token count next to the paw icon", isOn: $settings.menuBarShowsTokens)
+                        Toggle("Show 5h% / weekly% next to the robot icon", isOn: $settings.menuBarShowsTokens)
+                        Text("Example: 63%/60% — falls back to today's tokens until limit history exists.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                     .padding(6)
                     .frame(maxWidth: .infinity, alignment: .leading)

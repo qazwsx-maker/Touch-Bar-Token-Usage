@@ -5,6 +5,7 @@ import TBPrivate
 extension NSTouchBarItem.Identifier {
     static let tbtPet = NSTouchBarItem.Identifier("com.qazwsxmaker.tbtu.pet")
     static let tbtStats = NSTouchBarItem.Identifier("com.qazwsxmaker.tbtu.stats")
+    static let tbtFullBars = NSTouchBarItem.Identifier("com.qazwsxmaker.tbtu.fullbars")
     static let tbtApprovalInfo = NSTouchBarItem.Identifier("com.qazwsxmaker.tbtu.approvalInfo")
     static let tbtAccept = NSTouchBarItem.Identifier("com.qazwsxmaker.tbtu.accept")
     static let tbtDeny = NSTouchBarItem.Identifier("com.qazwsxmaker.tbtu.deny")
@@ -41,6 +42,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     private var petView: AnimatedPetView?
     private var statsLabel: NSTextField?
+    private var fullBarsView: FullBarsView?
     private var approvalLabel: NSTextField?
     private var passItem: NSButtonTouchBarItem?
 
@@ -85,10 +87,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     func applySettings() {
         guard available else { return }
         TBPSetControlStripPresence(Self.trayItemIdentifier, settings.showWidget)
+        refreshSaberState()
         petView?.kind = settings.pet
         petView?.color = settings.theme.pet
         if modalPresented {
-            updateModalContent()
+            refreshModalItems()
         }
         redrawStrip()
     }
@@ -97,6 +100,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     func update(snapshot: UsageMonitor.Snapshot) {
         self.snapshot = snapshot
+        refreshSaberState()
         redrawStrip()
         if modalPresented {
             updateModalContent()
@@ -136,6 +140,32 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     // MARK: - Animation
 
+    private var saberEngaged = false
+
+    /// Auto mode uses hysteresis (ignite ≥900 tok/min, extinguish <650) so a
+    /// rate hovering near the threshold doesn't strobe between styles.
+    private func refreshSaberState() {
+        switch settings.barStyle {
+        case "saber":
+            saberEngaged = true
+        case "classic":
+            saberEngaged = false
+        default:
+            let rate = snapshot.ratePerMinute
+            if saberEngaged {
+                if rate < 650 { saberEngaged = false }
+            } else if rate >= 900 {
+                saberEngaged = true
+            }
+        }
+    }
+
+    private var saberOn: Bool { saberEngaged }
+
+    private var saberIntensity: Double {
+        min(1, snapshot.ratePerMinute / 3000)
+    }
+
     private var currentFPS: Double {
         let rate = snapshot.ratePerMinute
         let base: Double
@@ -146,7 +176,13 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         } else {
             base = min(4 + rate / 800.0, 13)
         }
-        return max(1, base * settings.energy.multiplier)
+        var fps = max(1, base * settings.energy.multiplier)
+        // Keep the beam shimmering — but only when a beam is actually visible.
+        let beamVisible = settings.showLimitBars || (modalPresented && settings.expandedLayoutIsBars)
+        if saberOn && beamVisible {
+            fps = max(fps, 6)
+        }
+        return fps
     }
 
     private func restartAnimation() {
@@ -169,8 +205,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         }
         redrawStrip()
         petView?.fps = currentFPS
-        if modalPresented, !approvals.isEmpty {
-            updateCountdown()
+        if modalPresented {
+            fullBarsView?.animate(frame: frameIndex, saber: saberOn, intensity: saberIntensity)
+            if !approvals.isEmpty {
+                updateCountdown()
+            }
         }
         let desired = 1.0 / currentFPS
         if abs(desired - lastInterval) > 0.02 {
@@ -185,10 +224,13 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         let theme = settings.theme
         let isAlert = !approvals.isEmpty
         let running = isAlert || snapshot.ratePerMinute >= 30
+        // The Control Strip budget is ~100pt: shrink the pet when bars are on.
+        let petCell: CGFloat = (settings.showLimitBars && !isAlert && toast == nil) ? 1.6 : 2
         let petImage = PetSprites.image(kind: settings.pet,
                                         frame: frameIndex,
                                         running: running,
-                                        color: isAlert ? .white : theme.pet)
+                                        color: isAlert ? .white : theme.pet,
+                                        cell: petCell)
         button.image = WidgetRenderer.stripImage(theme: theme, petImage: petImage, content: stripContent())
     }
 
@@ -200,6 +242,30 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                                           alert: true,
                                           alertPhase: alertPhase,
                                           toast: nil)
+        }
+
+        // Bars mode: the compact widget is bars-only (model/token text lives
+        // in the expanded bar and the menu bar — the strip is too narrow).
+        if settings.showLimitBars, toast == nil {
+            var fiveLabel = snapshot.fiveHourLimit > 0 ? Fmt.percent(snapshot.fiveHourFraction) : "–"
+            // The strip has no room for both — alternate % and reset time
+            // inside the 5h bar every few seconds.
+            if let reset = AppFmt.resetDisplay(resetAt: snapshot.fiveHourResetAt,
+                                               limit: snapshot.fiveHourLimit,
+                                               clock: settings.resetStyleIsClock),
+               Int(Date().timeIntervalSince1970 / 4) % 2 == 1 {
+                fiveLabel = reset
+            }
+            let bars = WidgetRenderer.Bars(
+                fiveFraction: snapshot.fiveHourFraction,
+                fiveLabel: fiveLabel,
+                weekFraction: snapshot.weeklyFraction,
+                weekLabel: snapshot.weeklyLimit > 0 ? Fmt.percent(snapshot.weeklyFraction) : "–",
+                saber: saberOn,
+                frame: frameIndex,
+                intensity: saberIntensity)
+            return WidgetRenderer.Content(bars: bars, line1: "", line2: nil,
+                                          alert: false, alertPhase: false, toast: nil)
         }
 
         let today = snapshot.today
@@ -234,16 +300,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             parts.append(Fmt.rate(snapshot.ratePerMinute))
         }
         let line2 = parts.isEmpty ? nil : parts.joined(separator: " · ")
-
-        var bars: WidgetRenderer.Bars?
-        if settings.showLimitBars {
-            bars = WidgetRenderer.Bars(
-                fiveFraction: snapshot.fiveHourFraction,
-                fiveLabel: snapshot.fiveHourLimit > 0 ? Fmt.percent(snapshot.fiveHourFraction) : "–",
-                weekFraction: snapshot.weeklyFraction,
-                weekLabel: snapshot.weeklyLimit > 0 ? Fmt.percent(snapshot.weeklyFraction) : "–")
-        }
-        return WidgetRenderer.Content(bars: bars, line1: line1, line2: line2,
+        return WidgetRenderer.Content(line1: line1, line2: line2,
                                       alert: false, alertPhase: false, toast: toast)
     }
 
@@ -281,11 +338,13 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     private func refreshModalItems() {
         guard let bar = modalBar else { return }
-        var ids: [NSTouchBarItem.Identifier] = [.tbtPet, .tbtStats, .flexibleSpace]
+        var ids: [NSTouchBarItem.Identifier]
         if !approvals.isEmpty {
-            ids += [.tbtApprovalInfo, .tbtDeny, .tbtPass, .tbtAccept, .tbtClose]
+            ids = [.tbtPet, .tbtStats, .flexibleSpace, .tbtApprovalInfo, .tbtDeny, .tbtPass, .tbtAccept, .tbtClose]
+        } else if settings.expandedLayoutIsBars {
+            ids = [.tbtPet, .tbtFullBars, .tbtPrefs, .tbtClose]
         } else {
-            ids += [.tbtPrefs, .tbtClose]
+            ids = [.tbtPet, .tbtStats, .flexibleSpace, .tbtPrefs, .tbtClose]
         }
         if bar.defaultItemIdentifiers != ids {
             bar.defaultItemIdentifiers = ids
@@ -300,8 +359,10 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             var pieces: [String] = []
             if snapshot.fiveHourLimit > 0 {
                 var five = "5h \(Fmt.percent(snapshot.fiveHourFraction))"
-                if let reset = snapshot.fiveHourResetAt {
-                    five += "↻\(AppFmt.hourMinute.string(from: reset))"
+                if let reset = AppFmt.resetDisplay(resetAt: snapshot.fiveHourResetAt,
+                                                   limit: snapshot.fiveHourLimit,
+                                                   clock: settings.resetStyleIsClock) {
+                    five += " " + reset
                 }
                 pieces.append(five)
             }
@@ -318,6 +379,12 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             text = "Today \(Fmt.abbrev(today.totalTokens)) · \(Fmt.money(today.costUSD))"
         }
         statsLabel?.stringValue = text
+        let resetDisplay = AppFmt.resetDisplay(resetAt: snapshot.fiveHourResetAt,
+                                               limit: snapshot.fiveHourLimit,
+                                               clock: settings.resetStyleIsClock) ?? ""
+        fullBarsView?.apply(snapshot: snapshot, theme: settings.theme, resetDisplay: resetDisplay)
+        // Sync the beam state immediately — don't wait for the next tick.
+        fullBarsView?.animate(frame: frameIndex, saber: saberOn, intensity: saberIntensity)
 
         if let first = approvals.first {
             var info = "🤖 \(first.title): \(first.detail)"
@@ -362,6 +429,14 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             label.textColor = .white
             statsLabel = label
             item.view = label
+            updateModalContent()
+            return item
+
+        case .tbtFullBars:
+            let item = NSCustomTouchBarItem(identifier: identifier)
+            let view = FullBarsView(frame: NSRect(x: 0, y: 0, width: 720, height: 30))
+            fullBarsView = view
+            item.view = view
             updateModalContent()
             return item
 

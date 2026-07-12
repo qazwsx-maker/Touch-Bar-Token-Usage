@@ -3,7 +3,7 @@ import Combine
 import TBTCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    static let version = "0.2.0"
+    static let version = "0.3.0"
 
     let settings = Settings.shared
     private let hookInstaller = HookInstaller()
@@ -21,6 +21,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastSnapshot = UsageMonitor.Snapshot()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Upgrading over a running copy: take over from the old instance.
+        terminateOtherInstances()
+
         let token = hookInstaller.ensureRuntimeFiles(port: settings.port)
         appliedPort = settings.port
 
@@ -92,16 +95,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
 
-        if !UserDefaults.standard.bool(forKey: "didFirstRun") {
-            UserDefaults.standard.set(true, forKey: "didFirstRun")
+        // Show the window on the first launch of every new version. The app
+        // lives in the menu bar only, so a silent launch after an upgrade
+        // looks like nothing happened.
+        let lastRunVersion = UserDefaults.standard.string(forKey: "lastRunVersion")
+        if lastRunVersion != Self.version {
+            UserDefaults.standard.set(Self.version, forKey: "lastRunVersion")
             openPreferences()
         }
+    }
+
+    /// Double-clicking the app in Finder/Dock while it's already running
+    /// should always surface the window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        openPreferences()
+        return true
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         touchBarController?.tearDown()
         server?.stop()
         monitor?.stop()
+    }
+
+    private func terminateOtherInstances() {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+        let myPID = ProcessInfo.processInfo.processIdentifier
+        let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            .filter { $0.processIdentifier != myPID }
+        for app in others {
+            app.terminate()
+        }
     }
 
     // MARK: - Settings propagation

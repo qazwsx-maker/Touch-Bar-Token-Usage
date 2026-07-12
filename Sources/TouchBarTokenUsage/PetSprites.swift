@@ -217,6 +217,35 @@ enum PetSprites {
     // MARK: - Rendering
 
     private static var cache: [String: NSImage] = [:]
+    private static var iconCache: [String: NSImage] = [:]
+
+    /// 18×18 template (menu-bar) icon of the pet's idle pose.
+    static func templateIcon(for kind: PetKind) -> NSImage? {
+        guard let sprite = sprite(for: kind) else { return nil }
+        if let cached = iconCache[kind.rawValue] { return cached }
+        let frames = sprite.idle.isEmpty ? sprite.run : sprite.idle
+        guard let map = frames.first else { return nil }
+        let rows = map.count
+        let cols = map.map { $0.count }.max() ?? 1
+        let cell = min(18 / CGFloat(cols), 16 / CGFloat(rows))
+        let image = NSImage(size: NSSize(width: 18, height: 18))
+        image.lockFocus()
+        NSColor.black.setFill()
+        let originX = (18 - CGFloat(cols) * cell) / 2
+        let originY = (18 - CGFloat(rows) * cell) / 2
+        for (r, rowString) in map.enumerated() {
+            for (c, ch) in rowString.enumerated() where ch == "#" {
+                NSRect(x: originX + CGFloat(c) * cell,
+                       y: originY + CGFloat(rows - 1 - r) * cell,
+                       width: cell,
+                       height: cell).fill()
+            }
+        }
+        image.unlockFocus()
+        image.isTemplate = true
+        iconCache[kind.rawValue] = image
+        return image
+    }
 
     /// Renders one frame as a tinted pixel image. Returns nil for `.none`.
     static func image(kind: PetKind, frame: Int, running: Bool, color: NSColor, cell: CGFloat = 2) -> NSImage? {

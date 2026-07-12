@@ -65,6 +65,9 @@ final class Settings: ObservableObject {
     @Published var showCostLine: Bool { didSet { d.set(showCostLine, forKey: "showCostLine") } }
     @Published var showRateLine: Bool { didSet { d.set(showRateLine, forKey: "showRateLine") } }
     @Published var showLimitBars: Bool { didSet { d.set(showLimitBars, forKey: "showLimitBars") } }
+    @Published var expandedLayout: String { didSet { d.set(expandedLayout, forKey: "expandedLayout") } }
+    @Published var resetStyle: String { didSet { d.set(resetStyle, forKey: "resetStyle") } }
+    @Published var barStyle: String { didSet { d.set(barStyle, forKey: "barStyle") } }
     @Published var showModelOnBar: Bool { didSet { d.set(showModelOnBar, forKey: "showModelOnBar") } }
     @Published var fiveHourLimitTokens: Int { didSet { d.set(fiveHourLimitTokens, forKey: "fiveHourLimitTokens") } }
     @Published var weeklyLimitTokens: Int { didSet { d.set(weeklyLimitTokens, forKey: "weeklyLimitTokens") } }
@@ -95,6 +98,9 @@ final class Settings: ObservableObject {
             "showCostLine": true,
             "showRateLine": true,
             "showLimitBars": true,
+            "expandedLayout": "bars",
+            "resetStyle": "remaining",
+            "barStyle": "auto",
             "showModelOnBar": true,
             "fiveHourLimitTokens": 0,
             "weeklyLimitTokens": 0,
@@ -122,6 +128,9 @@ final class Settings: ObservableObject {
         showCostLine = d.bool(forKey: "showCostLine")
         showRateLine = d.bool(forKey: "showRateLine")
         showLimitBars = d.bool(forKey: "showLimitBars")
+        expandedLayout = d.string(forKey: "expandedLayout") ?? "bars"
+        resetStyle = d.string(forKey: "resetStyle") ?? "remaining"
+        barStyle = d.string(forKey: "barStyle") ?? "auto"
         showModelOnBar = d.bool(forKey: "showModelOnBar")
         fiveHourLimitTokens = d.integer(forKey: "fiveHourLimitTokens")
         weeklyLimitTokens = d.integer(forKey: "weeklyLimitTokens")
@@ -144,6 +153,8 @@ final class Settings: ObservableObject {
 
     var theme: Theme { Theme.resolve(settings: self) }
     var pet: PetKind { PetKind(rawValue: petID) ?? .penguin }
+    var expandedLayoutIsBars: Bool { expandedLayout != "stats" }
+    var resetStyleIsClock: Bool { resetStyle == "clock" }
     var displayMetric: DisplayMetric { DisplayMetric(rawValue: metric) ?? .totalTokens }
     var energy: PetEnergy { PetEnergy(rawValue: petEnergy) ?? .normal }
 }
@@ -154,4 +165,14 @@ enum AppFmt {
         f.dateFormat = "HH:mm"
         return f
     }()
+
+    /// "↻1:42" (time left) or "↻14:30" (clock), nil when there is no active
+    /// block or no limit history to compare against.
+    static func resetDisplay(resetAt: Date?, limit: Int, clock: Bool) -> String? {
+        guard let resetAt = resetAt, limit > 0 else { return nil }
+        if clock {
+            return "↻" + hourMinute.string(from: resetAt)
+        }
+        return "↻" + Fmt.remaining(resetAt.timeIntervalSinceNow)
+    }
 }

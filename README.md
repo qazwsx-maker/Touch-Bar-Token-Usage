@@ -10,12 +10,21 @@ With a pixel pet that runs faster while your tokens burn. 🔥
 [![Build](https://img.shields.io/github/actions/workflow/status/qazwsx-maker/Touch-Bar-Token-Usage/build.yml?branch=main&style=for-the-badge)](https://github.com/qazwsx-maker/Touch-Bar-Token-Usage/actions)
 [![Platform](https://img.shields.io/badge/macOS-12%2B%20·%20Touch%20Bar-1d1d2b?style=for-the-badge&logo=apple)](#requirements)
 [![License](https://img.shields.io/badge/license-MIT-30D158?style=for-the-badge)](LICENSE)
+[![Website](https://img.shields.io/badge/🌐_website-qazwsx--maker.github.io-64D2FF?style=for-the-badge)](https://qazwsx-maker.github.io/Touch-Bar-Token-Usage/)
 
 <br>
 
-<img src="docs/img/widget.svg" width="530" alt="Control Strip widget: pet, 5h/7d limit bars, active model">
+<img src="docs/img/widget.svg" width="530" alt="Compact Control Strip widget: pet and inline 5h/7d limit bars">
 
-*The Control Strip widget — pet · 5-hour & weekly limit bars · active model · today's usage*
+*The compact widget — pet + 5-hour & weekly limit bars, sized to fit the Control Strip*
+
+<img src="docs/img/fullbar.svg" width="820" alt="Expanded full-width 5h and weekly bars">
+
+*Tap it → full-width bars (or a stats text line — your choice)*
+
+<img src="docs/img/fullbar-saber.svg" width="820" alt="Lightsaber bar style — animated glowing beams">
+
+*…or ignite ⚔️ lightsaber mode: glowing beams that flicker and pulse with your burn rate*
 
 <img src="docs/img/approval.svg" width="820" alt="Approval bar with Accept / Deny / Pass buttons">
 
@@ -27,12 +36,13 @@ With a pixel pet that runs faster while your tokens burn. 🔥
 
 ## ✨ Features
 
-- 📊 **Limit bars** — live `5h` (Claude's 5-hour session block, with reset time) and `7d` (rolling week) progress bars. Bars turn orange at 75 % and red at 90 %.
-- 🤖 **Active model** — always know if you're burning `sonnet-5` or `opus-4-5` money.
+- 📊 **Limit bars** — live `5h` (Claude's 5-hour session block, with reset time) and `7d` (rolling week) progress bars, percent inside. Bars turn orange at 75 % and red at 90 %. Tap the widget for **full-width bars** across the whole Touch Bar (selectable layout).
+- ⚔️ **Lightsaber mode** — optionally render the bars as glowing animated energy beams (white-hot core, flicker, traveling pulses). Set to *Auto* and the sabers ignite only while you're burning tokens hard.
+- 🤖 **Active model** — the expanded bar and menu show whether you're burning `sonnet-5` or `opus-4-5` money.
 - ✅ **Accept / Deny from the Touch Bar** — a native [Claude Code hook](https://code.claude.com/docs/en/hooks) forwards permission prompts to the bar. Tap **✓ Accept**, **✕ Deny**, or **Pass** to fall back to the terminal. No keyboard injection, no focus stealing.
 - 🐧 **Pixel pets** — penguin, dragon, or ghost. Idle when you're idle, sprinting when tokens flow.
 - 🎨 **Themes** — five presets + fully custom colors, with a live preview right in Preferences (works on Macs without a Touch Bar too).
-- 📈 **Menu bar companion** — today / this month totals, cost estimate, burn rate, block reset time.
+- 📈 **Menu bar companion** — your pet as the icon, live `63%/60%` (5h / weekly) next to it, plus today & month totals, cost, burn rate and block reset time in its menu.
 - 🔔 Extras — sound on new requests, "Claude finished" toasts, an optional on-screen approval panel, launch at login.
 - 🔒 **100 % local** — reads `~/.claude/projects/**/*.jsonl` only. Nothing ever leaves your Mac.
 
@@ -73,7 +83,7 @@ make install          # needs Xcode Command Line Tools
 
 ## 🚀 Set up Claude approvals (2 clicks)
 
-1. Launch the app → Preferences opens on first run (menu bar 🐾 → *Preferences…* later).
+1. Launch the app → Preferences opens on first run (menu bar 🤖 → *Preferences…* later).
 2. **Setup** tab → **Install Claude Code hook** → **Send test approval request** — the Accept/Deny bar should light up.
 3. Start a **new** Claude Code session. Done.
 
@@ -97,20 +107,25 @@ Requests are authenticated with a private token (`~/.claude/touchbar-usage/token
 
 ## ⚙️ Configuration
 
-Everything lives in Preferences (menu bar 🐾 → `⌘,`):
+Everything lives in Preferences (menu bar 🤖 → `⌘,`):
 
 | Tab | What you tune |
 |---|---|
 | **Setup** | Status lights, hook install, test request, live Touch Bar preview |
-| **Appearance** | Theme (5 presets + custom colors), pet, animation energy |
+| **Appearance** | Theme (5 presets + custom colors), bar style (classic / lightsaber / auto), pet, animation energy |
 | **Approvals** | Enable/disable, decision timeout, tool regex, auto-pass Bash prefixes, port, sounds, on-screen panel |
-| **General** | Limit bars & model toggles, custom token limits, info-line metric, menu bar text, launch at login |
+| **General** | Compact bars on/off, tap-to-expand layout (big bars / stats text), reset display (time left ↻1:42 / clock ↻14:30), custom token limits, text-mode metric & model, menu bar %, launch at login |
 
 ## 🧯 FAQ
 
 <details><summary><b>Why the <code>xattr -cr</code> dance?</b></summary>
 
 The app is signed ad-hoc, not notarized with Apple ($99/yr). Clearing the quarantine flag (or right-click → Open) is a one-time step. All code is open here if you'd rather audit and `make install` yourself.
+</details>
+
+<details><summary><b>I launched the app and… nothing happened</b></summary>
+
+The app has no Dock icon — it lives in the **menu bar**: look for your pet (🐧 by default) at the top-right of the screen. Since v0.2.1, double-clicking the app again always brings up the Preferences window, and the window opens automatically the first time you run a new version. Also note that every freshly downloaded zip is quarantined again — re-run `xattr -cr /Applications/TouchBarTokenUsage.app` after each manual update.
 </details>
 
 <details><summary><b>The widget doesn't show up</b></summary>
