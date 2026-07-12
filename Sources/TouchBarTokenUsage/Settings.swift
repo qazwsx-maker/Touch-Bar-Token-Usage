@@ -68,6 +68,7 @@ final class Settings: ObservableObject {
     @Published var expandedLayout: String { didSet { d.set(expandedLayout, forKey: "expandedLayout") } }
     @Published var resetStyle: String { didSet { d.set(resetStyle, forKey: "resetStyle") } }
     @Published var widgetMode: String { didSet { d.set(widgetMode, forKey: "widgetMode") } }
+    @Published var provider: String { didSet { d.set(provider, forKey: "provider") } }
     @Published var barStyle: String { didSet { d.set(barStyle, forKey: "barStyle") } }
     @Published var showModelOnBar: Bool { didSet { d.set(showModelOnBar, forKey: "showModelOnBar") } }
     @Published var fiveHourLimitTokens: Int { didSet { d.set(fiveHourLimitTokens, forKey: "fiveHourLimitTokens") } }
@@ -103,6 +104,7 @@ final class Settings: ObservableObject {
             "resetStyle": "remaining",
             "barStyle": "auto",
             "widgetMode": "full",
+            "provider": "claude",
             "showModelOnBar": true,
             "fiveHourLimitTokens": 0,
             "weeklyLimitTokens": 0,
@@ -134,6 +136,7 @@ final class Settings: ObservableObject {
         resetStyle = d.string(forKey: "resetStyle") ?? "remaining"
         barStyle = d.string(forKey: "barStyle") ?? "auto"
         widgetMode = d.string(forKey: "widgetMode") ?? "full"
+        provider = d.string(forKey: "provider") ?? "claude"
         showModelOnBar = d.bool(forKey: "showModelOnBar")
         fiveHourLimitTokens = d.integer(forKey: "fiveHourLimitTokens")
         weeklyLimitTokens = d.integer(forKey: "weeklyLimitTokens")
@@ -159,6 +162,8 @@ final class Settings: ObservableObject {
     var expandedLayoutIsBars: Bool { expandedLayout != "stats" }
     var resetStyleIsClock: Bool { resetStyle == "clock" }
     var widgetModeIsFull: Bool { widgetMode != "compact" }
+    var providerIncludesClaude: Bool { provider != "codex" }
+    var providerIncludesCodex: Bool { provider == "codex" || provider == "both" }
     var displayMetric: DisplayMetric { DisplayMetric(rawValue: metric) ?? .totalTokens }
     var energy: PetEnergy { PetEnergy(rawValue: petEnergy) ?? .normal }
 }

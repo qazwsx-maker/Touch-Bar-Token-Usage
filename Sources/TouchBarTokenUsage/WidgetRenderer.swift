@@ -15,6 +15,8 @@ enum WidgetRenderer {
         var saber: Bool = false
         var frame: Int = 0
         var intensity: Double = 0
+        var fiveTitle: String = "5h"
+        var weekTitle: String = "7d"
     }
 
     struct Content {
@@ -117,10 +119,10 @@ enum WidgetRenderer {
         }
 
         let x = 5 + petWidth
-        drawInlineBar(theme: theme, label: "5h", fraction: bars.fiveFraction, pctText: bars.fiveLabel,
+        drawInlineBar(theme: theme, label: bars.fiveTitle, fraction: bars.fiveFraction, pctText: bars.fiveLabel,
                       in: NSRect(x: x, y: 16.5, width: barWidth, height: 8),
                       saber: bars.saber, frame: bars.frame, intensity: bars.intensity)
-        drawInlineBar(theme: theme, label: "7d", fraction: bars.weekFraction, pctText: bars.weekLabel,
+        drawInlineBar(theme: theme, label: bars.weekTitle, fraction: bars.weekFraction, pctText: bars.weekLabel,
                       in: NSRect(x: x, y: 5, width: barWidth, height: 8),
                       saber: bars.saber, frame: bars.frame &+ 17, intensity: bars.intensity)
 
@@ -304,41 +306,32 @@ enum WidgetRenderer {
 ///   5H ▁▁▁▁▁▁  ↻1:42 · 100%   7D ▁▁▁  ↻Sat 05:59 · 13%   TODAY 1.28M·$4.32   MODEL sonnet-5
 /// Thin 3.5pt tracks with the info line above; width adapts to what the
 /// Touch Bar actually grants (low compression resistance, no hard 720pt).
+struct FullBarsDisplay {
+    struct Segment {
+        var label: String
+        var info: String
+        var fraction: Double
+    }
+    struct Stack {
+        var title: String
+        var value: String
+    }
+    var segments: [Segment] = []
+    var stacks: [Stack] = []
+}
+
 final class FullBarsView: NSView {
     private var theme: Theme?
-    private var fiveFraction: Double = 0
-    private var weekFraction: Double = 0
-    private var fiveInfo = "–"
-    private var weekInfo = "–"
-    private var todayText = "–"
-    private var modelText = "–"
+    private var display = FullBarsDisplay()
     private var saber = false
     private var animFrame = 0
     private var intensity: Double = 0
 
     override var intrinsicContentSize: NSSize { NSSize(width: 620, height: 30) }
 
-    func apply(snapshot: UsageMonitor.Snapshot, theme: Theme, fiveReset: String, weekReset: String) {
+    func apply(display: FullBarsDisplay, theme: Theme) {
+        self.display = display
         self.theme = theme
-        fiveFraction = snapshot.fiveHourFraction
-        weekFraction = snapshot.weeklyFraction
-
-        if snapshot.fiveHourHasData {
-            var info = Fmt.percent(snapshot.fiveHourFraction)
-            if !fiveReset.isEmpty { info = fiveReset + " · " + info }
-            fiveInfo = info
-        } else {
-            fiveInfo = "no data"
-        }
-        if snapshot.weeklyHasData {
-            var info = Fmt.percent(snapshot.weeklyFraction)
-            if !weekReset.isEmpty { info = weekReset + " · " + info }
-            weekInfo = info
-        } else {
-            weekInfo = "no data"
-        }
-        todayText = "\(Fmt.abbrev(snapshot.today.totalTokens)) · \(Fmt.money(snapshot.today.costUSD))"
-        modelText = snapshot.lastModel.map { Fmt.shortModel($0) } ?? "–"
         needsDisplay = true
     }
 
@@ -354,20 +347,26 @@ final class FullBarsView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        guard let theme = theme else { return }
-        let width = bounds.width
+        guard let theme = theme, !display.segments.isEmpty else { return }
         let gap: CGFloat = 14
-        let segWidth = (width - 2 * gap) * 0.315
-        let stackWidth = (width - 2 * gap) * 0.185
+        let stackWidth: CGFloat = 112
+        let stacksTotal = CGFloat(display.stacks.count) * (stackWidth + 6)
+        let segCount = CGFloat(display.segments.count)
+        let segWidth = max(90, (bounds.width - stacksTotal - gap * (segCount - 1)
+            - (display.stacks.isEmpty ? 0 : gap)) / segCount)
 
-        drawThinSegment(label: "5H", info: fiveInfo, fraction: fiveFraction,
-                        x: 0, width: segWidth, theme: theme, frameOffset: 0)
-        drawThinSegment(label: "7D", info: weekInfo, fraction: weekFraction,
-                        x: segWidth + gap, width: segWidth, theme: theme, frameOffset: 17)
-        drawStack(title: "TODAY", value: todayText,
-                  x: 2 * (segWidth + gap), width: stackWidth, theme: theme)
-        drawStack(title: "MODEL", value: modelText,
-                  x: 2 * (segWidth + gap) + stackWidth + 6, width: stackWidth, theme: theme)
+        var x: CGFloat = 0
+        for (index, segment) in display.segments.enumerated() {
+            drawThinSegment(label: segment.label, info: segment.info, fraction: segment.fraction,
+                            x: x, width: segWidth, theme: theme, frameOffset: index * 17)
+            x += segWidth + gap
+        }
+        if !display.stacks.isEmpty {
+            for stack in display.stacks {
+                drawStack(title: stack.title, value: stack.value, x: x, width: stackWidth, theme: theme)
+                x += stackWidth + 6
+            }
+        }
     }
 
     private func drawThinSegment(label: String, info: String, fraction: Double,
@@ -377,14 +376,15 @@ final class FullBarsView: NSView {
             .foregroundColor: theme.secondaryText,
         ])
         labelString.draw(at: NSPoint(x: x, y: 11))
+        let labelWidth = labelString.size().width + 6
 
         let infoString = NSAttributedString(string: info, attributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .semibold),
             .foregroundColor: theme.text,
         ])
-        infoString.draw(at: NSPoint(x: x + 22, y: 16))
+        infoString.draw(at: NSPoint(x: x + labelWidth, y: 16))
 
-        let trackRect = NSRect(x: x + 22, y: 6, width: max(30, width - 22), height: 3.5)
+        let trackRect = NSRect(x: x + labelWidth, y: 6, width: max(30, width - labelWidth), height: 3.5)
         theme.text.withAlphaComponent(saber ? 0.12 : 0.18).setFill()
         NSBezierPath(roundedRect: trackRect, xRadius: 1.75, yRadius: 1.75).fill()
 

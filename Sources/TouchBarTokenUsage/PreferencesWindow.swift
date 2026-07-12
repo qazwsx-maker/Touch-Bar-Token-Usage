@@ -543,6 +543,23 @@ struct GeneralTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                GroupBox(label: Text("Usage source")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Picker("Show usage of", selection: $settings.provider) {
+                            Text("Claude (default)").tag("claude")
+                            Text("Codex").tag("codex")
+                            Text("Both").tag("both")
+                        }
+                        .pickerStyle(SegmentedPickerStyle())
+                        Text("Codex reads ~/.codex/sessions written by Codex CLI — percentages refresh whenever Codex runs a turn. In Both mode the small widgets alternate C/X every few seconds.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
                 GroupBox(label: Text("Touch Bar widget")) {
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle("Show widget on Touch Bar", isOn: $settings.showWidget)

@@ -8,6 +8,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
 
     private var snapshot = UsageMonitor.Snapshot()
+    private var codexSnapshot = CodexMonitor.Snapshot()
     private var approvalCount = 0
 
     var onOpenPreferences: (() -> Void)?
@@ -66,6 +67,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         refreshTitle()
     }
 
+    func updateCodex(_ snapshot: CodexMonitor.Snapshot) {
+        codexSnapshot = snapshot
+        refreshTitle()
+    }
+
     func setApprovalCount(_ count: Int) {
         approvalCount = count
         refreshTitle()
@@ -81,11 +87,17 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if approvalCount > 0 {
             button.title = " ✋\(approvalCount)"
         } else if settings.menuBarShowsTokens {
-            // "63%/60%" = 5-hour window / weekly window.
-            if snapshot.fiveHourHasData || snapshot.weeklyHasData {
-                let five = snapshot.fiveHourHasData ? Fmt.percent(snapshot.fiveHourFraction) : "–"
-                let week = snapshot.weeklyHasData ? Fmt.percent(snapshot.weeklyFraction) : "–"
-                button.title = " \(five)/\(week)"
+            // "63%/60%" = 5-hour window / weekly window. In "both" mode the
+            // title alternates providers every few seconds (C … / X …).
+            let showCodex = settings.provider == "codex"
+                || (settings.provider == "both" && Int(Date().timeIntervalSince1970 / 4) % 2 == 1)
+            let fiveHas = showCodex ? codexSnapshot.fiveHourHasData : snapshot.fiveHourHasData
+            let weekHas = showCodex ? codexSnapshot.weeklyHasData : snapshot.weeklyHasData
+            if fiveHas || weekHas {
+                let five = fiveHas ? Fmt.percent(showCodex ? codexSnapshot.fiveHourFraction : snapshot.fiveHourFraction) : "–"
+                let week = weekHas ? Fmt.percent(showCodex ? codexSnapshot.weeklyFraction : snapshot.weeklyFraction) : "–"
+                let prefix = settings.provider == "both" ? (showCodex ? "X " : "C ") : ""
+                button.title = " \(prefix)\(five)/\(week)"
             } else {
                 button.title = " " + Fmt.abbrev(snapshot.today.totalTokens)
             }
@@ -159,6 +171,28 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
         if !snapshot.dataDirFound {
             info("⚠️ ~/.claude/projects not found — run Claude Code once")
+        }
+        if settings.providerIncludesCodex {
+            menu.addItem(.separator())
+            if codexSnapshot.dataDirFound {
+                let fiveReset = AppFmt.resetDisplay(resetAt: codexSnapshot.fiveHourResetAt,
+                                                    hasData: codexSnapshot.fiveHourHasData,
+                                                    clock: settings.resetStyleIsClock)
+                let weekReset = AppFmt.resetDisplay(resetAt: codexSnapshot.weeklyResetAt,
+                                                    hasData: codexSnapshot.weeklyHasData,
+                                                    clock: settings.resetStyleIsClock)
+                info("Codex 5h: \(codexSnapshot.fiveHourHasData ? Fmt.percent(codexSnapshot.fiveHourFraction) : "no data")"
+                    + (fiveReset.map { " · \($0)" } ?? ""))
+                info("Codex weekly: \(codexSnapshot.weeklyHasData ? Fmt.percent(codexSnapshot.weeklyFraction) : "no data")"
+                    + (weekReset.map { " · \($0)" } ?? ""))
+                var todayLine = "Codex today: \(Fmt.abbrev(codexSnapshot.todayTokens)) tokens"
+                if let model = codexSnapshot.lastModel {
+                    todayLine += " · \(model)"
+                }
+                info(todayLine)
+            } else {
+                info("Codex: ~/.codex/sessions not found — run Codex CLI once")
+            }
         }
         menu.addItem(.separator())
 
