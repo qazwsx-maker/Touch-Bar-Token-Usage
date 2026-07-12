@@ -1,0 +1,59 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, "claude/**" ]
+    tags: [ "v*" ]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Create a GitHub release with this tag (e.g. v0.1.0). Leave empty to only build."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Run core tests
+        run: swift test
+
+      - name: Compute version
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            V="${GITHUB_REF_NAME#v}"
+          elif [ -n "${RELEASE_TAG}" ]; then
+            V="${RELEASE_TAG#v}"
+          else
+            V="0.1.0-dev-${GITHUB_SHA:0:7}"
+          fi
+          echo "version=${V}" >> "$GITHUB_OUTPUT"
+
+      - name: Build .app bundle and zip
+        run: make zip VERSION="${{ steps.version.outputs.version }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TouchBarTokenUsage-${{ steps.version.outputs.version }}
+          path: dist/TouchBarTokenUsage.zip
+          if-no-files-found: error
+
+      - name: Release
+        if: github.ref_type == 'tag' || github.event.inputs.release_tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || github.event.inputs.release_tag }}
+          files: dist/TouchBarTokenUsage.zip
+          generate_release_notes: true
