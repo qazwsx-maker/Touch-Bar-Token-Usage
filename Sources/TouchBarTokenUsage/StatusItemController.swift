@@ -97,6 +97,20 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let month = snapshot.month
         info("This month: \(Fmt.abbrev(month.totalTokens)) tokens · \(Fmt.money(month.costUSD))")
         info("Burn rate: \(Fmt.rate(snapshot.ratePerMinute))")
+        if snapshot.fiveHourLimit > 0 {
+            var line = "5-hour block: \(Fmt.abbrev(snapshot.fiveHourTokens)) / \(Fmt.abbrev(snapshot.fiveHourLimit))"
+                + " (\(Fmt.percent(snapshot.fiveHourFraction))\(snapshot.fiveHourLimitIsAuto ? " of your max" : ""))"
+            if let reset = snapshot.fiveHourResetAt {
+                line += " · resets \(AppFmt.hourMinute.string(from: reset))"
+            }
+            info(line)
+        } else {
+            info("5-hour block: \(Fmt.abbrev(snapshot.fiveHourTokens)) (no history yet)")
+        }
+        if snapshot.weeklyLimit > 0 {
+            info("Weekly (7d): \(Fmt.abbrev(snapshot.weeklyTokens)) / \(Fmt.abbrev(snapshot.weeklyLimit))"
+                + " (\(Fmt.percent(snapshot.weeklyFraction))\(snapshot.weeklyLimitIsAuto ? " of your max" : ""))")
+        }
         if let model = snapshot.lastModel {
             info("Model: \(model)")
         }

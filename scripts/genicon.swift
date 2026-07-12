@@ -12,17 +12,17 @@ guard arguments.count >= 2 else {
 let outDir = URL(fileURLWithPath: arguments[1])
 try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
 
-let cat = [
-    "..............#.#.",
-    ".#............###.",
-    ".#...........####.",
-    "..#..#############",
-    "...###############",
-    "....#############.",
-    "....############..",
-    "....##.......##...",
-    "...#..#.....#..#..",
-    "..#....#...#....#.",
+let sprite = [
+    "....####....",
+    "...######...",
+    "...#.##.#...",
+    "...######...",
+    "..########..",
+    "..########..",
+    "..########..",
+    "..########..",
+    "...######...",
+    "..##....##..",
 ]
 
 func draw(size: Int) -> NSBitmapImageRep? {
@@ -46,13 +46,13 @@ func draw(size: Int) -> NSBitmapImageRep? {
     NSColor(calibratedRed: 0.07, green: 0.07, blue: 0.12, alpha: 1).setFill()
     NSBezierPath(roundedRect: rect, xRadius: s * 0.21, yRadius: s * 0.21).fill()
 
-    let rows = cat.count
-    let cols = cat.map { $0.count }.max() ?? 1
-    let cell = (s * 0.74) / CGFloat(cols)
+    let rows = sprite.count
+    let cols = sprite.map { $0.count }.max() ?? 1
+    let cell = (s * 0.62) / CGFloat(rows)
     let originX = (s - CGFloat(cols) * cell) / 2
     let originY = (s - CGFloat(rows) * cell) / 2
     NSColor(calibratedRed: 0.39, green: 0.82, blue: 1.0, alpha: 1).setFill()
-    for (r, row) in cat.enumerated() {
+    for (r, row) in sprite.enumerated() {
         for (c, ch) in row.enumerated() where ch == "#" {
             NSRect(x: originX + CGFloat(c) * cell,
                    y: originY + CGFloat(rows - 1 - r) * cell,

@@ -203,20 +203,30 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         }
 
         let today = snapshot.today
-        let line1: String
+        let metricText: String
         switch settings.displayMetric {
         case .totalTokens:
-            line1 = Fmt.abbrev(today.totalTokens)
+            metricText = Fmt.abbrev(today.totalTokens)
         case .inOut:
-            line1 = "↑" + Fmt.abbrev(today.inputTokens + today.cacheCreationTokens)
+            metricText = "↑" + Fmt.abbrev(today.inputTokens + today.cacheCreationTokens)
                 + " ↓" + Fmt.abbrev(today.outputTokens)
         case .cost:
-            line1 = Fmt.money(today.costUSD)
+            metricText = Fmt.money(today.costUSD)
         case .rate:
-            line1 = Fmt.rate(snapshot.ratePerMinute)
+            metricText = Fmt.rate(snapshot.ratePerMinute)
+        }
+
+        let line1: String
+        if settings.showModelOnBar, let model = snapshot.lastModel {
+            line1 = Fmt.truncate(Fmt.shortModel(model), max: 14)
+        } else {
+            line1 = metricText
         }
 
         var parts: [String] = []
+        if settings.showModelOnBar {
+            parts.append(metricText)
+        }
         if settings.showCostLine && settings.displayMetric != .cost {
             parts.append(Fmt.money(today.costUSD))
         }
@@ -224,7 +234,17 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             parts.append(Fmt.rate(snapshot.ratePerMinute))
         }
         let line2 = parts.isEmpty ? nil : parts.joined(separator: " · ")
-        return WidgetRenderer.Content(line1: line1, line2: line2, alert: false, alertPhase: false, toast: toast)
+
+        var bars: WidgetRenderer.Bars?
+        if settings.showLimitBars {
+            bars = WidgetRenderer.Bars(
+                fiveFraction: snapshot.fiveHourFraction,
+                fiveLabel: snapshot.fiveHourLimit > 0 ? Fmt.percent(snapshot.fiveHourFraction) : "–",
+                weekFraction: snapshot.weeklyFraction,
+                weekLabel: snapshot.weeklyLimit > 0 ? Fmt.percent(snapshot.weeklyFraction) : "–")
+        }
+        return WidgetRenderer.Content(bars: bars, line1: line1, line2: line2,
+                                      alert: false, alertPhase: false, toast: toast)
     }
 
     @objc private func stripTapped() {
@@ -275,16 +295,27 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     private func updateModalContent() {
         let today = snapshot.today
-        var text = "Today \(Fmt.abbrev(today.totalTokens))"
+        var text: String
         if approvals.isEmpty {
-            text += "  ↑\(Fmt.abbrev(today.inputTokens + today.cacheCreationTokens))"
-                + " ↓\(Fmt.abbrev(today.outputTokens))"
-                + "  \(Fmt.money(today.costUSD))  \(Fmt.rate(snapshot.ratePerMinute))"
-            if let model = snapshot.lastModel {
-                text += "  \(shortModel(model))"
+            var pieces: [String] = []
+            if snapshot.fiveHourLimit > 0 {
+                var five = "5h \(Fmt.percent(snapshot.fiveHourFraction))"
+                if let reset = snapshot.fiveHourResetAt {
+                    five += "↻\(AppFmt.hourMinute.string(from: reset))"
+                }
+                pieces.append(five)
             }
+            if snapshot.weeklyLimit > 0 {
+                pieces.append("7d \(Fmt.percent(snapshot.weeklyFraction))")
+            }
+            pieces.append("today \(Fmt.abbrev(today.totalTokens)) \(Fmt.money(today.costUSD))")
+            pieces.append(Fmt.rate(snapshot.ratePerMinute))
+            if let model = snapshot.lastModel {
+                pieces.append(Fmt.shortModel(model))
+            }
+            text = pieces.joined(separator: "  ·  ")
         } else {
-            text += " · \(Fmt.money(today.costUSD))"
+            text = "Today \(Fmt.abbrev(today.totalTokens)) · \(Fmt.money(today.costUSD))"
         }
         statsLabel?.stringValue = text
 
@@ -307,15 +338,6 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         guard let first = approvals.first else { return }
         let remaining = max(0, Int(first.deadline.timeIntervalSinceNow.rounded()))
         passItem?.title = "Pass \(remaining)s"
-    }
-
-    private func shortModel(_ model: String) -> String {
-        var m = model.replacingOccurrences(of: "claude-", with: "")
-        let parts = m.split(separator: "-")
-        if let last = parts.last, last.count == 8, Int(last) != nil {
-            m = parts.dropLast().joined(separator: "-")
-        }
-        return m
     }
 
     // MARK: - NSTouchBarDelegate

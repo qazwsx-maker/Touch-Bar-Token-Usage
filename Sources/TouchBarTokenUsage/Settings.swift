@@ -64,6 +64,10 @@ final class Settings: ObservableObject {
     @Published var metric: String { didSet { d.set(metric, forKey: "metric") } }
     @Published var showCostLine: Bool { didSet { d.set(showCostLine, forKey: "showCostLine") } }
     @Published var showRateLine: Bool { didSet { d.set(showRateLine, forKey: "showRateLine") } }
+    @Published var showLimitBars: Bool { didSet { d.set(showLimitBars, forKey: "showLimitBars") } }
+    @Published var showModelOnBar: Bool { didSet { d.set(showModelOnBar, forKey: "showModelOnBar") } }
+    @Published var fiveHourLimitTokens: Int { didSet { d.set(fiveHourLimitTokens, forKey: "fiveHourLimitTokens") } }
+    @Published var weeklyLimitTokens: Int { didSet { d.set(weeklyLimitTokens, forKey: "weeklyLimitTokens") } }
     @Published var showWidget: Bool { didSet { d.set(showWidget, forKey: "showWidget") } }
     @Published var menuBarShowsTokens: Bool { didSet { d.set(menuBarShowsTokens, forKey: "menuBarShowsTokens") } }
 
@@ -85,11 +89,15 @@ final class Settings: ObservableObject {
             "customText": "#F2F2F7",
             "customAccent": "#0A84FF",
             "customPet": "#64D2FF",
-            "petID": "cat",
+            "petID": "penguin",
             "petEnergy": "normal",
             "metric": DisplayMetric.totalTokens.rawValue,
             "showCostLine": true,
             "showRateLine": true,
+            "showLimitBars": true,
+            "showModelOnBar": true,
+            "fiveHourLimitTokens": 0,
+            "weeklyLimitTokens": 0,
             "showWidget": true,
             "menuBarShowsTokens": true,
             "approvalsEnabled": true,
@@ -108,11 +116,15 @@ final class Settings: ObservableObject {
         customText = d.string(forKey: "customText") ?? "#F2F2F7"
         customAccent = d.string(forKey: "customAccent") ?? "#0A84FF"
         customPet = d.string(forKey: "customPet") ?? "#64D2FF"
-        petID = d.string(forKey: "petID") ?? "cat"
+        petID = d.string(forKey: "petID") ?? "penguin"
         petEnergy = d.string(forKey: "petEnergy") ?? "normal"
         metric = d.string(forKey: "metric") ?? DisplayMetric.totalTokens.rawValue
         showCostLine = d.bool(forKey: "showCostLine")
         showRateLine = d.bool(forKey: "showRateLine")
+        showLimitBars = d.bool(forKey: "showLimitBars")
+        showModelOnBar = d.bool(forKey: "showModelOnBar")
+        fiveHourLimitTokens = d.integer(forKey: "fiveHourLimitTokens")
+        weeklyLimitTokens = d.integer(forKey: "weeklyLimitTokens")
         showWidget = d.bool(forKey: "showWidget")
         menuBarShowsTokens = d.bool(forKey: "menuBarShowsTokens")
         approvalsEnabled = d.bool(forKey: "approvalsEnabled")
@@ -126,10 +138,20 @@ final class Settings: ObservableObject {
         autoPassPrefixes = d.string(forKey: "autoPassPrefixes") ?? ""
         if port <= 0 || port > 65535 { port = Settings.defaultPort }
         if approvalTimeout < 5 || approvalTimeout > 55 { approvalTimeout = 20 }
+        // Migrate removed pets (cat/dog) from older versions.
+        if PetKind(rawValue: petID) == nil { petID = "penguin" }
     }
 
     var theme: Theme { Theme.resolve(settings: self) }
-    var pet: PetKind { PetKind(rawValue: petID) ?? .cat }
+    var pet: PetKind { PetKind(rawValue: petID) ?? .penguin }
     var displayMetric: DisplayMetric { DisplayMetric(rawValue: metric) ?? .totalTokens }
     var energy: PetEnergy { PetEnergy(rawValue: petEnergy) ?? .normal }
+}
+
+enum AppFmt {
+    static let hourMinute: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
 }

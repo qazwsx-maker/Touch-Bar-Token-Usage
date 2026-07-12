@@ -12,9 +12,9 @@
 
 ## ฟีเจอร์
 
-- **Widget บน Control Strip** (มุมขวาของ Touch Bar): token วันนี้ + ค่าใช้จ่าย (USD) + burn rate — แตะเพื่อเปิดแถบเต็มพร้อมรายละเอียด
+- **Widget บน Control Strip** (มุมขวาของ Touch Bar): **bar แสดง % ของ 5-hour block และ weekly limit** + **model ที่ใช้งานอยู่** + token/ค่าใช้จ่าย/burn rate วันนี้ — แตะเพื่อเปิดแถบเต็มพร้อมรายละเอียด (เวลารีเซ็ต block ฯลฯ)
 - **Accept / Deny จาก Touch Bar**: เมื่อ Claude Code ขอสิทธิ์ใช้ tool (เช่น `Bash`, `Edit`, `Write`) แถบจะเด้งขึ้นมาให้กด ✓ Accept / ✕ Deny / Pass ได้ทันที (ผ่าน PreToolUse hook อย่างเป็นทางการของ Claude Code — ไม่ใช่การ inject คีย์บอร์ด)
-- **Pets 🐱🐶🐲🐧👻**: สัตว์เลี้ยงพิกเซลบน Touch Bar วิ่งเร็วตามความแรงของการใช้ token (เลือกได้ 5 ตัว หรือปิด)
+- **Pets 🐧🐲👻**: สัตว์เลี้ยงพิกเซลบน Touch Bar วิ่งเร็วตามความแรงของการใช้ token (เพนกวิน/มังกร/ผี หรือปิด)
 - **Themes**: Midnight / Matrix / Neon Sunset / Ocean / Mono + custom สีเองได้ทุกส่วน
 - **เมนูบาร์**: สรุป token วันนี้/เดือนนี้, ค่าใช้จ่าย, burn rate, model ล่าสุด — ใช้ได้แม้เครื่องไม่มี Touch Bar
 - **แผงลอยบนจอ (optional)**: ปุ่ม Accept/Deny แบบ on-screen เผื่อไว้ทดสอบหรือใช้กับเครื่องที่ไม่มี Touch Bar
@@ -69,9 +69,16 @@ make install        # build + คัดลอกไป /Applications
 | แท็บ | ตั้งค่าได้ |
 |---|---|
 | Setup | สถานะระบบ, ติดตั้ง hook, ส่ง test request, preview Touch Bar |
-| Appearance | **Theme สี** (5 preset + custom), **Pet** (แมว/หมา/มังกร/เพนกวิน/ผี/ปิด), ความเร็วอนิเมชัน |
+| Appearance | **Theme สี** (5 preset + custom), **Pet** (เพนกวิน/มังกร/ผี/ปิด), ความเร็วอนิเมชัน |
 | Approvals | เปิด/ปิด, เวลารอ, regex เลือก tools, auto-pass prefixes, port, เสียง, on-screen panel |
-| General | metric ที่แสดง (token รวม / in-out / cost / rate), บรรทัดที่สอง, เมนูบาร์, launch at login |
+| General | เปิด/ปิด limit bars + model บน widget, **ตั้งค่า 5-hour / weekly limit (tokens)**, metric ของ info line, เมนูบาร์, launch at login |
+
+### Limit bars ทำงานยังไง
+
+- **5h** = หน้าต่าง 5 ชั่วโมงแบบเดียวกับ session block ของ Claude (เริ่มนับจากข้อความแรก ปัดลงเป็นชั่วโมงเต็ม, เว้นว่างเกิน 5 ชม. = block ใหม่) พร้อมเวลารีเซ็ตในเมนู/แถบเต็ม
+- **7d** = ผลรวมแบบ rolling 7 วัน
+- ค่า limit: ตั้งเป็นจำนวน token เองได้ใน General → Usage limits หรือปล่อย **auto** (เทียบกับสถิติการใช้สูงสุดของคุณเอง — ครั้งแรกที่ใช้งาน bar จะดูเต็มไว เพราะ block ปัจจุบันคือสถิติสูงสุด พอมีประวัติสักพักจะนิ่งขึ้น)
+- token ที่นับ: input + output + cache write (ไม่รวม cache read เพราะปริมาณมหาศาลจะกลบตัวเลข) — เป็นการ**ประมาณ**ฝั่ง local ไม่ได้อ่านโควตาจริงจากเซิร์ฟเวอร์ Anthropic
 
 ## ความปลอดภัย
 
@@ -100,9 +107,9 @@ make install        # build + คัดลอกไป /Applications
 
 A menu-bar app for Touch Bar MacBook Pros (2016–2020 incl. M1/M2 13", macOS 12+) that:
 
-- shows **today's Claude Code token usage, estimated cost and burn rate** in the Control Strip,
+- shows **5-hour-block and weekly usage-limit bars**, the **active model**, plus today's tokens/cost/burn rate in the Control Strip (limits are estimated locally ccusage-style: custom token limits or auto = your highest usage on record; counted tokens are input + output + cache writes),
 - lets you **Accept / Deny Claude Code permission prompts right on the Touch Bar** (via the official PreToolUse hook protocol — the hook long-polls this app over localhost; no keyboard injection),
-- has **5 color themes + custom colors** and **5 pixel pets** whose run speed follows your token burn rate,
+- has **5 color themes + custom colors** and **3 pixel pets** (penguin 🐧 / dragon 🐲 / ghost 👻) whose run speed follows your token burn rate,
 - keeps everything **local** — it only reads `~/.claude/projects/**/*.jsonl`.
 
 ## Install

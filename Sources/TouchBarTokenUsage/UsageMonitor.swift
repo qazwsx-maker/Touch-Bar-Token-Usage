@@ -2,8 +2,8 @@ import Foundation
 import TBTCore
 
 /// Watches `~/.claude/projects/**/*.jsonl` (and the XDG variant), tails new
-/// lines, aggregates per-day token usage and publishes snapshots on the main
-/// queue every few seconds.
+/// lines, aggregates per-day token usage plus 5-hour-block / weekly windows,
+/// and publishes snapshots on the main queue every few seconds.
 final class UsageMonitor {
     struct Snapshot {
         var today = UsageTotals.zero
@@ -13,6 +13,19 @@ final class UsageMonitor {
         var lastEventDate: Date?
         var filesTracked: Int = 0
         var dataDirFound: Bool = false
+
+        // 5-hour session block (Claude subscription window).
+        var fiveHourTokens = 0
+        var fiveHourLimit = 0          // resolved: custom, else learned max (0 = unknown)
+        var fiveHourFraction: Double = 0
+        var fiveHourResetAt: Date?
+        var fiveHourLimitIsAuto = true
+
+        // Rolling 7-day window.
+        var weeklyTokens = 0
+        var weeklyLimit = 0
+        var weeklyFraction: Double = 0
+        var weeklyLimitIsAuto = true
     }
 
     var onUpdate: ((Snapshot) -> Void)?
@@ -32,6 +45,18 @@ final class UsageMonitor {
     private var lastModel: String?
     private var lastEventDate: Date?
     private var firstScanDone = false
+
+    /// Events for the last ~8 days used for block/weekly windows.
+    /// Tokens counted toward limits: input + output + cache writes
+    /// (cache reads are excluded — they would swamp the numbers).
+    private var recentEvents: [SessionBlocks.Event] = []
+    private var recentEventsDirty = false
+
+    private var customFiveHourLimit = 0
+    private var customWeeklyLimit = 0
+
+    private static let learnedFiveKey = "learnedMaxFiveHourTokens"
+    private static let learnedWeekKey = "learnedMaxWeeklyTokens"
 
     private let dayFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -53,6 +78,13 @@ final class UsageMonitor {
     func stop() {
         timer?.cancel()
         timer = nil
+    }
+
+    func setCustomLimits(fiveHour: Int, weekly: Int) {
+        queue.async { [weak self] in
+            self?.customFiveHourLimit = max(0, fiveHour)
+            self?.customWeeklyLimit = max(0, weekly)
+        }
     }
 
     private func dataRoots() -> [URL] {
@@ -110,6 +142,7 @@ final class UsageMonitor {
         }
         firstScanDone = true
         prunePerDay()
+        pruneRecentEvents()
         publish(dataDirFound: !roots.isEmpty)
     }
 
@@ -158,6 +191,11 @@ final class UsageMonitor {
         if event.date > Date().addingTimeInterval(-600) {
             burn.add(tokens: event.inputTokens + event.outputTokens, at: event.date)
         }
+        let limitTokens = event.inputTokens + event.outputTokens + event.cacheCreationTokens
+        if limitTokens > 0, event.date > Date().addingTimeInterval(-8 * 24 * 3600) {
+            recentEvents.append((date: event.date, tokens: limitTokens))
+            recentEventsDirty = true
+        }
     }
 
     private func prunePerDay() {
@@ -165,6 +203,13 @@ final class UsageMonitor {
         let sortedKeys = perDay.keys.sorted()
         for key in sortedKeys.prefix(perDay.count - 62) {
             perDay.removeValue(forKey: key)
+        }
+    }
+
+    private func pruneRecentEvents() {
+        let cutoff = Date().addingTimeInterval(-8 * 24 * 3600)
+        if recentEvents.contains(where: { $0.date < cutoff }) {
+            recentEvents.removeAll { $0.date < cutoff }
         }
     }
 
@@ -182,6 +227,42 @@ final class UsageMonitor {
         snapshot.lastEventDate = lastEventDate
         snapshot.filesTracked = files.count
         snapshot.dataDirFound = dataDirFound
+
+        if recentEventsDirty {
+            recentEvents.sort { $0.date < $1.date }
+            recentEventsDirty = false
+        }
+
+        // 5-hour block window
+        let defaults = UserDefaults.standard
+        let currentBlock = SessionBlocks.current(events: recentEvents, now: now)
+        snapshot.fiveHourTokens = currentBlock?.tokens ?? 0
+        snapshot.fiveHourResetAt = currentBlock?.end
+
+        var learnedFive = defaults.integer(forKey: Self.learnedFiveKey)
+        let windowMaxFive = SessionBlocks.maxBlockTokens(events: recentEvents)
+        if windowMaxFive > learnedFive {
+            learnedFive = windowMaxFive
+            defaults.set(learnedFive, forKey: Self.learnedFiveKey)
+        }
+        snapshot.fiveHourLimitIsAuto = customFiveHourLimit <= 0
+        snapshot.fiveHourLimit = customFiveHourLimit > 0 ? customFiveHourLimit : learnedFive
+        if snapshot.fiveHourLimit > 0 {
+            snapshot.fiveHourFraction = min(1, Double(snapshot.fiveHourTokens) / Double(snapshot.fiveHourLimit))
+        }
+
+        // Rolling 7-day window
+        snapshot.weeklyTokens = SessionBlocks.tokens(inLast: 7 * 24 * 3600, events: recentEvents, now: now)
+        var learnedWeek = defaults.integer(forKey: Self.learnedWeekKey)
+        if snapshot.weeklyTokens > learnedWeek {
+            learnedWeek = snapshot.weeklyTokens
+            defaults.set(learnedWeek, forKey: Self.learnedWeekKey)
+        }
+        snapshot.weeklyLimitIsAuto = customWeeklyLimit <= 0
+        snapshot.weeklyLimit = customWeeklyLimit > 0 ? customWeeklyLimit : learnedWeek
+        if snapshot.weeklyLimit > 0 {
+            snapshot.weeklyFraction = min(1, Double(snapshot.weeklyTokens) / Double(snapshot.weeklyLimit))
+        }
 
         let result = snapshot
         DispatchQueue.main.async { [weak self] in
