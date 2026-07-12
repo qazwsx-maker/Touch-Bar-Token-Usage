@@ -45,7 +45,11 @@ final class CoreTests: XCTestCase {
 
     func testCostComputationForSonnet() throws {
         let event = try XCTUnwrap(TranscriptParser.parseLine(sampleLine))
-        let expected = (1200.0 * 3 + 300.0 * 15 + 50.0 * 3.75 + 8000.0 * 0.3) / 1_000_000
+        let inputCost: Double = 1200.0 * 3.0
+        let outputCost: Double = 300.0 * 15.0
+        let cacheWriteCost: Double = 50.0 * 3.75
+        let cacheReadCost: Double = 8000.0 * 0.3
+        let expected: Double = (inputCost + outputCost + cacheWriteCost + cacheReadCost) / 1_000_000.0
         XCTAssertEqual(Pricing.cost(of: event), expected, accuracy: 1e-9)
     }
 
