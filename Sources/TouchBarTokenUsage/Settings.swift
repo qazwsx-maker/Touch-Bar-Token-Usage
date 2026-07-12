@@ -155,15 +155,6 @@ final class Settings: ObservableObject {
     var pet: PetKind { PetKind(rawValue: petID) ?? .penguin }
     var expandedLayoutIsBars: Bool { expandedLayout != "stats" }
     var resetStyleIsClock: Bool { resetStyle == "clock" }
-
-    /// Lightsaber beam bars: always, never, or auto while burning hard.
-    func saberIsActive(ratePerMinute: Double) -> Bool {
-        switch barStyle {
-        case "saber": return true
-        case "classic": return false
-        default: return ratePerMinute >= 800
-        }
-    }
     var displayMetric: DisplayMetric { DisplayMetric(rawValue: metric) ?? .totalTokens }
     var energy: PetEnergy { PetEnergy(rawValue: petEnergy) ?? .normal }
 }

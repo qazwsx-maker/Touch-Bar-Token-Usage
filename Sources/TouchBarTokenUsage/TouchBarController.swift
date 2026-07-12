@@ -87,6 +87,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     func applySettings() {
         guard available else { return }
         TBPSetControlStripPresence(Self.trayItemIdentifier, settings.showWidget)
+        refreshSaberState()
         petView?.kind = settings.pet
         petView?.color = settings.theme.pet
         if modalPresented {
@@ -99,6 +100,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     func update(snapshot: UsageMonitor.Snapshot) {
         self.snapshot = snapshot
+        refreshSaberState()
         redrawStrip()
         if modalPresented {
             updateModalContent()
@@ -138,9 +140,27 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     // MARK: - Animation
 
-    private var saberOn: Bool {
-        settings.saberIsActive(ratePerMinute: snapshot.ratePerMinute)
+    private var saberEngaged = false
+
+    /// Auto mode uses hysteresis (ignite ≥900 tok/min, extinguish <650) so a
+    /// rate hovering near the threshold doesn't strobe between styles.
+    private func refreshSaberState() {
+        switch settings.barStyle {
+        case "saber":
+            saberEngaged = true
+        case "classic":
+            saberEngaged = false
+        default:
+            let rate = snapshot.ratePerMinute
+            if saberEngaged {
+                if rate < 650 { saberEngaged = false }
+            } else if rate >= 900 {
+                saberEngaged = true
+            }
+        }
     }
+
+    private var saberOn: Bool { saberEngaged }
 
     private var saberIntensity: Double {
         min(1, snapshot.ratePerMinute / 3000)
@@ -148,7 +168,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     private var currentFPS: Double {
         let rate = snapshot.ratePerMinute
-        var base: Double
+        let base: Double
         if !approvals.isEmpty {
             base = 8
         } else if rate < 30 {
@@ -156,10 +176,13 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         } else {
             base = min(4 + rate / 800.0, 13)
         }
-        if saberOn {
-            base = max(base, 6)  // keep the beam shimmering even when idle
+        var fps = max(1, base * settings.energy.multiplier)
+        // Keep the beam shimmering — but only when a beam is actually visible.
+        let beamVisible = settings.showLimitBars || (modalPresented && settings.expandedLayoutIsBars)
+        if saberOn && beamVisible {
+            fps = max(fps, 6)
         }
-        return max(1, base * settings.energy.multiplier)
+        return fps
     }
 
     private func restartAnimation() {
@@ -360,6 +383,8 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                                                limit: snapshot.fiveHourLimit,
                                                clock: settings.resetStyleIsClock) ?? ""
         fullBarsView?.apply(snapshot: snapshot, theme: settings.theme, resetDisplay: resetDisplay)
+        // Sync the beam state immediately — don't wait for the next tick.
+        fullBarsView?.animate(frame: frameIndex, saber: saberOn, intensity: saberIntensity)
 
         if let first = approvals.first {
             var info = "🤖 \(first.title): \(first.detail)"

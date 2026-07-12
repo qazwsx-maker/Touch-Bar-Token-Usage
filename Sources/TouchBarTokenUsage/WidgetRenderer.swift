@@ -82,27 +82,31 @@ enum WidgetRenderer {
         NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
 
         let clamped = max(0, min(1, fraction))
-        if clamped > 0 {
-            if saber {
-                drawSaberBeam(theme: theme, fraction: clamped, in: rect, frame: frame, intensity: intensity)
-            } else {
-                fillColor(theme: theme, fraction: clamped).setFill()
-                let fillRect = NSRect(x: rect.minX, y: rect.minY,
-                                      width: max(rect.height, rect.width * CGFloat(clamped)),
-                                      height: rect.height)
-                NSBezierPath(roundedRect: fillRect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
-            }
+        if saber {
+            // Draws the hilt even at zero — the saber rests, it doesn't vanish.
+            drawSaberBeam(theme: theme, fraction: clamped, in: rect, frame: frame, intensity: intensity)
+        } else if clamped > 0 {
+            fillColor(theme: theme, fraction: clamped).setFill()
+            let fillRect = NSRect(x: rect.minX, y: rect.minY,
+                                  width: max(rect.height, rect.width * CGFloat(clamped)),
+                                  height: rect.height)
+            NSBezierPath(roundedRect: fillRect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
         }
 
-        let labelColor = clamped > 0.14 ? theme.background.withAlphaComponent(0.95) : theme.secondaryText
+        // In saber mode the label sits past the gray hilt so they never blend.
+        let labelX = rect.minX + (saber ? 8 : 4)
+        let labelOnFill = saber ? clamped > 0 : clamped > 0.14
+        let labelColor = labelOnFill ? theme.background.withAlphaComponent(0.95) : theme.secondaryText
         let labelString = NSAttributedString(string: label, attributes: [
             .font: NSFont.systemFont(ofSize: 5.5, weight: .bold),
             .foregroundColor: labelColor,
         ])
-        labelString.draw(at: NSPoint(x: rect.minX + 4,
+        labelString.draw(at: NSPoint(x: labelX,
                                      y: rect.midY - labelString.size().height / 2))
 
-        let pctColor = clamped > 0.66 ? theme.background : theme.text
+        // The white-hot core reaches further left than a flat fill would, so
+        // flip the percent color earlier in saber mode.
+        let pctColor = clamped > (saber ? 0.55 : 0.66) ? theme.background : theme.text
         let pctString = NSAttributedString(string: pctText, attributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 7, weight: .bold),
             .foregroundColor: pctColor,
@@ -120,6 +124,7 @@ enum WidgetRenderer {
         NSBezierPath(roundedRect: NSRect(x: rect.minX, y: rect.minY + 0.5,
                                          width: hiltWidth, height: rect.height - 1),
                      xRadius: 1.5, yRadius: 1.5).fill()
+        guard fraction > 0 else { return }  // saber at rest: hilt only
 
         let f = Double(frame)
         let liveliness = 0.35 + 0.65 * max(0, min(1, intensity))
@@ -312,17 +317,15 @@ final class FullBarsView: NSView {
                      xRadius: barHeight / 2, yRadius: barHeight / 2).fill()
 
         let clamped = max(0, min(1, fraction))
-        if clamped > 0 {
-            if saber {
-                WidgetRenderer.drawSaberBeam(theme: theme, fraction: clamped, in: trackRect,
-                                             frame: animFrame &+ frameOffset, intensity: intensity)
-            } else {
-                WidgetRenderer.fillColor(theme: theme, fraction: clamped).setFill()
-                NSBezierPath(roundedRect: NSRect(x: trackX, y: barY,
-                                                 width: max(barHeight, trackWidth * CGFloat(clamped)),
-                                                 height: barHeight),
-                             xRadius: barHeight / 2, yRadius: barHeight / 2).fill()
-            }
+        if saber {
+            WidgetRenderer.drawSaberBeam(theme: theme, fraction: clamped, in: trackRect,
+                                         frame: animFrame &+ frameOffset, intensity: intensity)
+        } else if clamped > 0 {
+            WidgetRenderer.fillColor(theme: theme, fraction: clamped).setFill()
+            NSBezierPath(roundedRect: NSRect(x: trackX, y: barY,
+                                             width: max(barHeight, trackWidth * CGFloat(clamped)),
+                                             height: barHeight),
+                         xRadius: barHeight / 2, yRadius: barHeight / 2).fill()
         }
 
         pctString.draw(at: NSPoint(x: trackX + trackWidth + 8,
