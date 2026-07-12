@@ -45,4 +45,20 @@ public enum Fmt {
         guard max > 1, s.count > max else { return s }
         return String(s.prefix(max - 1)) + "…"
     }
+
+    /// 0.623 -> "62%". Values above 9.99 are capped at "999%".
+    public static func percent(_ fraction: Double) -> String {
+        let pct = Swift.max(0, Swift.min(fraction, 9.99)) * 100
+        return String(format: "%.0f%%", pct)
+    }
+
+    /// "claude-sonnet-5-20250929" -> "sonnet-5"
+    public static func shortModel(_ model: String) -> String {
+        var m = model.replacingOccurrences(of: "claude-", with: "")
+        let parts = m.split(separator: "-")
+        if let last = parts.last, last.count == 8, Int(last) != nil {
+            m = parts.dropLast().joined(separator: "-")
+        }
+        return m
+    }
 }

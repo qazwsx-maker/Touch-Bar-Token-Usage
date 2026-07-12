@@ -384,9 +384,23 @@ final class WidgetPreviewView: NSView {
                                    frame: frameIdx,
                                    running: true,
                                    color: alertDemo ? .white : theme.pet)
+        var bars: WidgetRenderer.Bars?
+        if settings.showLimitBars && !alertDemo {
+            bars = WidgetRenderer.Bars(fiveFraction: 0.62, fiveLabel: "62%",
+                                       weekFraction: 0.34, weekLabel: "34%")
+        }
+        let line1: String
+        if alertDemo {
+            line1 = "Bash · my-project"
+        } else if settings.showModelOnBar {
+            line1 = "sonnet-5"
+        } else {
+            line1 = "1.28M"
+        }
         let content = WidgetRenderer.Content(
-            line1: alertDemo ? "Bash · my-project" : "1.28M",
-            line2: alertDemo ? "tap to review" : "$4.32 · 8.1K/m",
+            bars: bars,
+            line1: line1,
+            line2: alertDemo ? "tap to review" : (settings.showModelOnBar ? "1.28M · $4.32" : "$4.32 · 8.1K/m"),
             alert: alertDemo,
             alertPhase: phase,
             toast: nil)
@@ -493,19 +507,47 @@ struct ApprovalsTab: View {
 struct GeneralTab: View {
     @ObservedObject var settings: Settings
 
+    private func intBinding(_ keyPath: ReferenceWritableKeyPath<Settings, Int>) -> Binding<String> {
+        Binding(
+            get: { settings[keyPath: keyPath] == 0 ? "" : String(settings[keyPath: keyPath]) },
+            set: { settings[keyPath: keyPath] = max(0, Int($0.trimmingCharacters(in: .whitespaces)) ?? 0) }
+        )
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 GroupBox(label: Text("Touch Bar widget")) {
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle("Show widget on Touch Bar", isOn: $settings.showWidget)
-                        Picker("Main line shows", selection: $settings.metric) {
+                        Toggle("Show 5h / weekly limit bars", isOn: $settings.showLimitBars)
+                        Toggle("Show current model", isOn: $settings.showModelOnBar)
+                        Picker("Info line shows", selection: $settings.metric) {
                             ForEach(DisplayMetric.allCases) { metric in
                                 Text(metric.label).tag(metric.rawValue)
                             }
                         }
-                        Toggle("Second line: today's cost", isOn: $settings.showCostLine)
-                        Toggle("Second line: burn rate", isOn: $settings.showRateLine)
+                        Toggle("Info line: today's cost", isOn: $settings.showCostLine)
+                        Toggle("Info line: burn rate", isOn: $settings.showRateLine)
+                    }
+                    .padding(6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                GroupBox(label: Text("Usage limits")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("5-hour limit (tokens):")
+                            TextField("0 = auto", text: intBinding(\.fiveHourLimitTokens))
+                                .frame(width: 110)
+                            Text("Weekly limit (tokens):")
+                            TextField("0 = auto", text: intBinding(\.weeklyLimitTokens))
+                                .frame(width: 110)
+                        }
+                        Text("0 = auto: the bar compares against the highest usage ever seen in your history. Counted tokens: input + output + cache writes (cache reads excluded). The 5-hour window matches Claude's session blocks; weekly is a rolling 7 days.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(6)
                     .frame(maxWidth: .infinity, alignment: .leading)

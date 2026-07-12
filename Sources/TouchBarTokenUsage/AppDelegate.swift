@@ -3,7 +3,7 @@ import Combine
 import TBTCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    static let version = "0.1.0"
+    static let version = "0.2.0"
 
     let settings = Settings.shared
     private let hookInstaller = HookInstaller()
@@ -81,6 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         touchBarController.setUp()
         statusController.touchBarAvailable = touchBarController.available
         server.start()
+        monitor.setCustomLimits(fiveHour: settings.fiveHourLimitTokens, weekly: settings.weeklyLimitTokens)
         monitor.start()
 
         cancellable = settings.objectWillChange
@@ -125,6 +126,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             server.start()
         }
 
+        monitor.setCustomLimits(fiveHour: settings.fiveHourLimitTokens, weekly: settings.weeklyLimitTokens)
         touchBarController.applySettings()
         statusController.settingsChanged()
     }

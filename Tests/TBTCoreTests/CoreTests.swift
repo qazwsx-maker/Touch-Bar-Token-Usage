@@ -208,6 +208,69 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(ThemeSpec.presets.first?.id, "midnight")
     }
 
+    // MARK: - Session blocks & windows
+
+    private func date(_ hoursFromBase: Double) -> Date {
+        // Base: 2026-07-10 00:00:00 UTC
+        Date(timeIntervalSince1970: 1_783_987_200 + hoursFromBase * 3600)
+    }
+
+    func testSessionBlockGrouping() {
+        let events: [SessionBlocks.Event] = [
+            (date(10.25), 100),   // block 1 starts at 10:00
+            (date(12.0), 200),    // same block (within 5h, gap < 5h)
+            (date(16.0), 50),     // past block end (15:00) -> new block at 16:00
+        ]
+        let blocks = SessionBlocks.blocks(events: events)
+        XCTAssertEqual(blocks.count, 2)
+        XCTAssertEqual(blocks[0].start, date(10))
+        XCTAssertEqual(blocks[0].end, date(15))
+        XCTAssertEqual(blocks[0].tokens, 300)
+        XCTAssertEqual(blocks[1].start, date(16))
+        XCTAssertEqual(blocks[1].tokens, 50)
+        XCTAssertEqual(SessionBlocks.maxBlockTokens(events: events), 300)
+    }
+
+    func testSessionBlockGapStartsNewBlock() {
+        // Two events within the same 5h-from-floored-start range but with a
+        // >= 5h gap between them must split into two blocks.
+        let events: [SessionBlocks.Event] = [
+            (date(0.9), 10),
+            (date(5.95), 20),  // 5.05h after previous event
+        ]
+        let blocks = SessionBlocks.blocks(events: events)
+        XCTAssertEqual(blocks.count, 2)
+        XCTAssertEqual(blocks[1].start, date(5))
+    }
+
+    func testCurrentBlockAndExpiry() {
+        let events: [SessionBlocks.Event] = [(date(10.25), 100), (date(11), 50)]
+        let active = SessionBlocks.current(events: events, now: date(12))
+        XCTAssertNotNil(active)
+        XCTAssertEqual(active?.tokens, 150)
+        XCTAssertEqual(active?.end, date(15))
+        XCTAssertNil(SessionBlocks.current(events: events, now: date(15.01)))
+        XCTAssertNil(SessionBlocks.current(events: [], now: date(12)))
+    }
+
+    func testRollingWindowTokens() {
+        let events: [SessionBlocks.Event] = [
+            (date(-24 * 8), 999),  // 8 days ago — outside window
+            (date(-24 * 3), 100),
+            (date(-1), 50),
+        ]
+        XCTAssertEqual(SessionBlocks.tokens(inLast: 7 * 24 * 3600, events: events, now: date(0)), 150)
+    }
+
+    func testPercentAndShortModel() {
+        XCTAssertEqual(Fmt.percent(0.623), "62%")
+        XCTAssertEqual(Fmt.percent(0), "0%")
+        XCTAssertEqual(Fmt.percent(1.5), "150%")
+        XCTAssertEqual(Fmt.shortModel("claude-sonnet-5-20250929"), "sonnet-5")
+        XCTAssertEqual(Fmt.shortModel("claude-opus-4-5-20251101"), "opus-4-5")
+        XCTAssertEqual(Fmt.shortModel("claude-sonnet-5"), "sonnet-5")
+    }
+
     // MARK: - Hook script
 
     func testHookScriptContent() {
