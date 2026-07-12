@@ -12,6 +12,9 @@ enum WidgetRenderer {
         var fiveLabel: String
         var weekFraction: Double
         var weekLabel: String
+        var saber: Bool = false
+        var frame: Int = 0
+        var intensity: Double = 0
     }
 
     struct Content {
@@ -61,9 +64,11 @@ enum WidgetRenderer {
 
         let x = 5 + petWidth
         drawInlineBar(theme: theme, label: "5h", fraction: bars.fiveFraction, pctText: bars.fiveLabel,
-                      in: NSRect(x: x, y: 16.5, width: barWidth, height: 8))
+                      in: NSRect(x: x, y: 16.5, width: barWidth, height: 8),
+                      saber: bars.saber, frame: bars.frame, intensity: bars.intensity)
         drawInlineBar(theme: theme, label: "7d", fraction: bars.weekFraction, pctText: bars.weekLabel,
-                      in: NSRect(x: x, y: 5, width: barWidth, height: 8))
+                      in: NSRect(x: x, y: 5, width: barWidth, height: 8),
+                      saber: bars.saber, frame: bars.frame &+ 17, intensity: bars.intensity)
 
         image.unlockFocus()
         return image
@@ -71,17 +76,22 @@ enum WidgetRenderer {
 
     /// A fat rounded bar with its label inside-left and percent inside-right.
     /// Text flips to the background color where it sits on the fill.
-    static func drawInlineBar(theme: Theme, label: String, fraction: Double, pctText: String, in rect: NSRect) {
-        theme.text.withAlphaComponent(0.18).setFill()
+    static func drawInlineBar(theme: Theme, label: String, fraction: Double, pctText: String, in rect: NSRect,
+                              saber: Bool = false, frame: Int = 0, intensity: Double = 0) {
+        theme.text.withAlphaComponent(saber ? 0.12 : 0.18).setFill()
         NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
 
         let clamped = max(0, min(1, fraction))
         if clamped > 0 {
-            fillColor(theme: theme, fraction: clamped).setFill()
-            let fillRect = NSRect(x: rect.minX, y: rect.minY,
-                                  width: max(rect.height, rect.width * CGFloat(clamped)),
-                                  height: rect.height)
-            NSBezierPath(roundedRect: fillRect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
+            if saber {
+                drawSaberBeam(theme: theme, fraction: clamped, in: rect, frame: frame, intensity: intensity)
+            } else {
+                fillColor(theme: theme, fraction: clamped).setFill()
+                let fillRect = NSRect(x: rect.minX, y: rect.minY,
+                                      width: max(rect.height, rect.width * CGFloat(clamped)),
+                                      height: rect.height)
+                NSBezierPath(roundedRect: fillRect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
+            }
         }
 
         let labelColor = clamped > 0.14 ? theme.background.withAlphaComponent(0.95) : theme.secondaryText
@@ -99,6 +109,54 @@ enum WidgetRenderer {
         ])
         pctString.draw(at: NSPoint(x: rect.maxX - pctString.size().width - 4,
                                    y: rect.midY - pctString.size().height / 2))
+    }
+
+    /// Lightsaber fill: gray hilt, glowing beam in the theme's fill color,
+    /// bright white core, flicker + a traveling energy pulse. `frame` drives
+    /// the animation; `intensity` (0…1, from the burn rate) drives how wild it is.
+    static func drawSaberBeam(theme: Theme, fraction: Double, in rect: NSRect, frame: Int, intensity: Double) {
+        let hiltWidth: CGFloat = min(6, rect.height * 0.75)
+        theme.secondaryText.setFill()
+        NSBezierPath(roundedRect: NSRect(x: rect.minX, y: rect.minY + 0.5,
+                                         width: hiltWidth, height: rect.height - 1),
+                     xRadius: 1.5, yRadius: 1.5).fill()
+
+        let f = Double(frame)
+        let liveliness = 0.35 + 0.65 * max(0, min(1, intensity))
+        let maxBeam = rect.width - hiltWidth
+        let flicker = CGFloat((sin(f * 1.13) * 0.9 + sin(f * 2.71 + 1.4) * 0.6) * liveliness)
+        var beamWidth = maxBeam * CGFloat(max(0, min(1, fraction))) + flicker
+        beamWidth = max(rect.height * 0.9, min(beamWidth, maxBeam))
+        let beamRect = NSRect(x: rect.minX + hiltWidth, y: rect.minY, width: beamWidth, height: rect.height)
+        let radius = rect.height / 2
+        let color = fillColor(theme: theme, fraction: fraction)
+
+        // outer glow (breathes)
+        let breathe = CGFloat(0.5 + 0.5 * sin(f * 0.6))
+        color.withAlphaComponent(0.22 + 0.16 * breathe).setFill()
+        NSBezierPath(roundedRect: beamRect.insetBy(dx: -1.5, dy: -1.5),
+                     xRadius: radius + 1.5, yRadius: radius + 1.5).fill()
+        // beam body
+        color.withAlphaComponent(0.92).setFill()
+        NSBezierPath(roundedRect: beamRect, xRadius: radius, yRadius: radius).fill()
+        // white-hot core
+        let coreInset = rect.height * 0.28
+        let coreRect = beamRect.insetBy(dx: 1.5, dy: coreInset)
+        if coreRect.width > 2 {
+            NSColor.white.withAlphaComponent(0.85).setFill()
+            NSBezierPath(roundedRect: coreRect,
+                         xRadius: coreRect.height / 2, yRadius: coreRect.height / 2).fill()
+        }
+        // traveling energy pulse
+        if beamRect.width > rect.height * 2 {
+            let period = 36.0
+            let t = CGFloat(f.truncatingRemainder(dividingBy: period) / period)
+            let pulseWidth = rect.height
+            let px = beamRect.minX + (beamRect.width - pulseWidth) * t
+            NSColor.white.withAlphaComponent(0.30 + 0.35 * CGFloat(max(0, min(1, intensity)))).setFill()
+            NSBezierPath(ovalIn: NSRect(x: px, y: beamRect.minY + 0.5,
+                                        width: pulseWidth, height: beamRect.height - 1)).fill()
+        }
     }
 
     static func fillColor(theme: Theme, fraction: Double) -> NSColor {
@@ -176,6 +234,9 @@ final class FullBarsView: NSView {
     private var fiveText = "–"
     private var weekText = "–"
     private var fiveDetail = ""
+    private var saber = false
+    private var animFrame = 0
+    private var intensity: Double = 0
 
     override var intrinsicContentSize: NSSize { NSSize(width: 720, height: 30) }
 
@@ -189,20 +250,33 @@ final class FullBarsView: NSView {
         needsDisplay = true
     }
 
+    /// Called on every animation tick so the saber beam shimmers.
+    func animate(frame: Int, saber: Bool, intensity: Double) {
+        let wasSaber = self.saber
+        animFrame = frame
+        self.saber = saber
+        self.intensity = intensity
+        if saber || wasSaber {
+            needsDisplay = true
+        }
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         guard let theme = theme else { return }
         let gap: CGFloat = 26
         let segWidth = (bounds.width - gap) / 2
         drawSegment(label: "5h", fraction: fiveFraction, pctText: fiveText, detail: fiveDetail,
-                    in: NSRect(x: 0, y: 0, width: segWidth, height: bounds.height), theme: theme)
+                    in: NSRect(x: 0, y: 0, width: segWidth, height: bounds.height), theme: theme,
+                    frameOffset: 0)
         theme.secondaryText.withAlphaComponent(0.45).setFill()
         NSRect(x: segWidth + gap / 2 - 4, y: bounds.midY - 1, width: 8, height: 2).fill()
         drawSegment(label: "Wk", fraction: weekFraction, pctText: weekText, detail: "",
-                    in: NSRect(x: segWidth + gap, y: 0, width: segWidth, height: bounds.height), theme: theme)
+                    in: NSRect(x: segWidth + gap, y: 0, width: segWidth, height: bounds.height), theme: theme,
+                    frameOffset: 17)
     }
 
     private func drawSegment(label: String, fraction: Double, pctText: String, detail: String,
-                             in rect: NSRect, theme: Theme) {
+                             in rect: NSRect, theme: Theme, frameOffset: Int) {
         let labelString = NSAttributedString(string: label, attributes: [
             .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold),
             .foregroundColor: theme.secondaryText,
@@ -226,17 +300,23 @@ final class FullBarsView: NSView {
         labelString.draw(at: NSPoint(x: rect.minX,
                                      y: rect.midY - labelString.size().height / 2))
 
-        theme.text.withAlphaComponent(0.16).setFill()
-        NSBezierPath(roundedRect: NSRect(x: trackX, y: barY, width: trackWidth, height: barHeight),
+        theme.text.withAlphaComponent(saber ? 0.12 : 0.16).setFill()
+        let trackRect = NSRect(x: trackX, y: barY, width: trackWidth, height: barHeight)
+        NSBezierPath(roundedRect: trackRect,
                      xRadius: barHeight / 2, yRadius: barHeight / 2).fill()
 
         let clamped = max(0, min(1, fraction))
         if clamped > 0 {
-            WidgetRenderer.fillColor(theme: theme, fraction: clamped).setFill()
-            NSBezierPath(roundedRect: NSRect(x: trackX, y: barY,
-                                             width: max(barHeight, trackWidth * CGFloat(clamped)),
-                                             height: barHeight),
-                         xRadius: barHeight / 2, yRadius: barHeight / 2).fill()
+            if saber {
+                WidgetRenderer.drawSaberBeam(theme: theme, fraction: clamped, in: trackRect,
+                                             frame: animFrame &+ frameOffset, intensity: intensity)
+            } else {
+                WidgetRenderer.fillColor(theme: theme, fraction: clamped).setFill()
+                NSBezierPath(roundedRect: NSRect(x: trackX, y: barY,
+                                                 width: max(barHeight, trackWidth * CGFloat(clamped)),
+                                                 height: barHeight),
+                             xRadius: barHeight / 2, yRadius: barHeight / 2).fill()
+            }
         }
 
         pctString.draw(at: NSPoint(x: trackX + trackWidth + 8,

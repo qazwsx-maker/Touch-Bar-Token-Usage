@@ -67,6 +67,7 @@ final class Settings: ObservableObject {
     @Published var showLimitBars: Bool { didSet { d.set(showLimitBars, forKey: "showLimitBars") } }
     @Published var expandedLayout: String { didSet { d.set(expandedLayout, forKey: "expandedLayout") } }
     @Published var resetStyle: String { didSet { d.set(resetStyle, forKey: "resetStyle") } }
+    @Published var barStyle: String { didSet { d.set(barStyle, forKey: "barStyle") } }
     @Published var showModelOnBar: Bool { didSet { d.set(showModelOnBar, forKey: "showModelOnBar") } }
     @Published var fiveHourLimitTokens: Int { didSet { d.set(fiveHourLimitTokens, forKey: "fiveHourLimitTokens") } }
     @Published var weeklyLimitTokens: Int { didSet { d.set(weeklyLimitTokens, forKey: "weeklyLimitTokens") } }
@@ -99,6 +100,7 @@ final class Settings: ObservableObject {
             "showLimitBars": true,
             "expandedLayout": "bars",
             "resetStyle": "remaining",
+            "barStyle": "auto",
             "showModelOnBar": true,
             "fiveHourLimitTokens": 0,
             "weeklyLimitTokens": 0,
@@ -128,6 +130,7 @@ final class Settings: ObservableObject {
         showLimitBars = d.bool(forKey: "showLimitBars")
         expandedLayout = d.string(forKey: "expandedLayout") ?? "bars"
         resetStyle = d.string(forKey: "resetStyle") ?? "remaining"
+        barStyle = d.string(forKey: "barStyle") ?? "auto"
         showModelOnBar = d.bool(forKey: "showModelOnBar")
         fiveHourLimitTokens = d.integer(forKey: "fiveHourLimitTokens")
         weeklyLimitTokens = d.integer(forKey: "weeklyLimitTokens")
@@ -152,6 +155,15 @@ final class Settings: ObservableObject {
     var pet: PetKind { PetKind(rawValue: petID) ?? .penguin }
     var expandedLayoutIsBars: Bool { expandedLayout != "stats" }
     var resetStyleIsClock: Bool { resetStyle == "clock" }
+
+    /// Lightsaber beam bars: always, never, or auto while burning hard.
+    func saberIsActive(ratePerMinute: Double) -> Bool {
+        switch barStyle {
+        case "saber": return true
+        case "classic": return false
+        default: return ratePerMinute >= 800
+        }
+    }
     var displayMetric: DisplayMetric { DisplayMetric(rawValue: metric) ?? .totalTokens }
     var energy: PetEnergy { PetEnergy(rawValue: petEnergy) ?? .normal }
 }

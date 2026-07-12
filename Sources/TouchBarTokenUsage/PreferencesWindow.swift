@@ -189,6 +189,21 @@ struct AppearanceTab: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
+                GroupBox(label: Text("Bar style")) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Picker("Limit bars look like", selection: $settings.barStyle) {
+                            Text("Classic").tag("classic")
+                            Text("Lightsaber ⚔️").tag("saber")
+                            Text("Auto — lightsaber while burning hard").tag("auto")
+                        }
+                        Text("The beam flickers and fires energy pulses; the harder you burn tokens, the wilder it gets.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
                 GroupBox(label: Text("Pet")) {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(spacing: 8) {
@@ -395,7 +410,10 @@ final class WidgetPreviewView: NSView {
                 fiveLabel = "63%"
             }
             bars = WidgetRenderer.Bars(fiveFraction: 0.63, fiveLabel: fiveLabel,
-                                       weekFraction: 0.60, weekLabel: "60%")
+                                       weekFraction: 0.60, weekLabel: "60%",
+                                       saber: settings.barStyle != "classic",
+                                       frame: frameIdx,
+                                       intensity: 0.8)
         }
         let line1: String
         if alertDemo {

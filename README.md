@@ -21,6 +21,10 @@ With a pixel pet that runs faster while your tokens burn. 🔥
 
 *Tap it → full-width bars (or a stats text line — your choice)*
 
+<img src="docs/img/fullbar-saber.svg" width="820" alt="Lightsaber bar style — animated glowing beams">
+
+*…or ignite ⚔️ lightsaber mode: glowing beams that flicker and pulse with your burn rate*
+
 <img src="docs/img/approval.svg" width="820" alt="Approval bar with Accept / Deny / Pass buttons">
 
 *Claude asks for permission → decide right on the Touch Bar*
@@ -32,6 +36,7 @@ With a pixel pet that runs faster while your tokens burn. 🔥
 ## ✨ Features
 
 - 📊 **Limit bars** — live `5h` (Claude's 5-hour session block, with reset time) and `7d` (rolling week) progress bars, percent inside. Bars turn orange at 75 % and red at 90 %. Tap the widget for **full-width bars** across the whole Touch Bar (selectable layout).
+- ⚔️ **Lightsaber mode** — optionally render the bars as glowing animated energy beams (white-hot core, flicker, traveling pulses). Set to *Auto* and the sabers ignite only while you're burning tokens hard.
 - 🤖 **Active model** — the expanded bar and menu show whether you're burning `sonnet-5` or `opus-4-5` money.
 - ✅ **Accept / Deny from the Touch Bar** — a native [Claude Code hook](https://code.claude.com/docs/en/hooks) forwards permission prompts to the bar. Tap **✓ Accept**, **✕ Deny**, or **Pass** to fall back to the terminal. No keyboard injection, no focus stealing.
 - 🐧 **Pixel pets** — penguin, dragon, or ghost. Idle when you're idle, sprinting when tokens flow.
@@ -106,7 +111,7 @@ Everything lives in Preferences (menu bar 🤖 → `⌘,`):
 | Tab | What you tune |
 |---|---|
 | **Setup** | Status lights, hook install, test request, live Touch Bar preview |
-| **Appearance** | Theme (5 presets + custom colors), pet, animation energy |
+| **Appearance** | Theme (5 presets + custom colors), bar style (classic / lightsaber / auto), pet, animation energy |
 | **Approvals** | Enable/disable, decision timeout, tool regex, auto-pass Bash prefixes, port, sounds, on-screen panel |
 | **General** | Compact bars on/off, tap-to-expand layout (big bars / stats text), reset display (time left ↻1:42 / clock ↻14:30), custom token limits, text-mode metric & model, menu bar %, launch at login |
 

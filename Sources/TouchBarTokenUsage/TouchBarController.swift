@@ -138,15 +138,26 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     // MARK: - Animation
 
+    private var saberOn: Bool {
+        settings.saberIsActive(ratePerMinute: snapshot.ratePerMinute)
+    }
+
+    private var saberIntensity: Double {
+        min(1, snapshot.ratePerMinute / 3000)
+    }
+
     private var currentFPS: Double {
         let rate = snapshot.ratePerMinute
-        let base: Double
+        var base: Double
         if !approvals.isEmpty {
             base = 8
         } else if rate < 30 {
             base = 2
         } else {
             base = min(4 + rate / 800.0, 13)
+        }
+        if saberOn {
+            base = max(base, 6)  // keep the beam shimmering even when idle
         }
         return max(1, base * settings.energy.multiplier)
     }
@@ -171,8 +182,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         }
         redrawStrip()
         petView?.fps = currentFPS
-        if modalPresented, !approvals.isEmpty {
-            updateCountdown()
+        if modalPresented {
+            fullBarsView?.animate(frame: frameIndex, saber: saberOn, intensity: saberIntensity)
+            if !approvals.isEmpty {
+                updateCountdown()
+            }
         }
         let desired = 1.0 / currentFPS
         if abs(desired - lastInterval) > 0.02 {
@@ -223,7 +237,10 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 fiveFraction: snapshot.fiveHourFraction,
                 fiveLabel: fiveLabel,
                 weekFraction: snapshot.weeklyFraction,
-                weekLabel: snapshot.weeklyLimit > 0 ? Fmt.percent(snapshot.weeklyFraction) : "–")
+                weekLabel: snapshot.weeklyLimit > 0 ? Fmt.percent(snapshot.weeklyFraction) : "–",
+                saber: saberOn,
+                frame: frameIndex,
+                intensity: saberIntensity)
             return WidgetRenderer.Content(bars: bars, line1: "", line2: nil,
                                           alert: false, alertPhase: false, toast: nil)
         }
