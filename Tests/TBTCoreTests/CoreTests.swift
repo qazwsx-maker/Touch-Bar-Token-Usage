@@ -279,6 +279,69 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(Fmt.shortModel("claude-sonnet-5"), "sonnet-5")
     }
 
+    // MARK: - Quota parser
+
+    func testQuotaParserPercentShape() throws {
+        let json = """
+        {"five_hour":{"utilization":100,"resets_at":"2026-07-12T09:00:00Z"},
+         "seven_day":{"utilization":13,"resets_at":"2026-07-18T23:00:00Z"}}
+        """
+        let quota = try XCTUnwrap(QuotaParser.parse(Data(json.utf8)))
+        XCTAssertEqual(quota.fiveHour?.utilization ?? -1, 1.0, accuracy: 0.001)
+        XCTAssertEqual(quota.sevenDay?.utilization ?? -1, 0.13, accuracy: 0.001)
+        XCTAssertEqual(quota.fiveHour?.resetsAt, TranscriptParser.parseDate("2026-07-12T09:00:00Z"))
+    }
+
+    func testQuotaParserFractionAndNestedShape() throws {
+        let json = """
+        {"usage":{"five_hour":{"utilization":0.63},"seven_day":{"utilization":0.6,"resets_at":1789000000}}}
+        """
+        let quota = try XCTUnwrap(QuotaParser.parse(Data(json.utf8)))
+        XCTAssertEqual(quota.fiveHour?.utilization ?? -1, 0.63, accuracy: 0.001)
+        XCTAssertEqual(quota.sevenDay?.resetsAt?.timeIntervalSince1970 ?? -1, 1_789_000_000, accuracy: 1)
+    }
+
+    func testQuotaParserRejectsGarbage() {
+        XCTAssertNil(QuotaParser.parse(Data("not json".utf8)))
+        XCTAssertNil(QuotaParser.parse(Data("{}".utf8)))
+        XCTAssertNil(QuotaParser.parse(Data("{\"five_hour\":{}}".utf8)))
+    }
+
+    // MARK: - Codex parser
+
+    func testCodexTokenCountWithRateLimits() throws {
+        let line = """
+        {"timestamp":"2026-07-12T10:00:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":90000,"output_tokens":8000,"total_tokens":98000},"last_token_usage":{"input_tokens":1200,"output_tokens":300}},"rate_limits":{"primary":{"used_percent":72.5,"window_minutes":300,"resets_in_seconds":7100},"secondary":{"used_percent":67,"window_minutes":10080,"resets_in_seconds":250000}}}}
+        """
+        let parsed = try XCTUnwrap(CodexParser.parseLine(line))
+        XCTAssertEqual(parsed.turnTokens, 1500)
+        XCTAssertEqual(parsed.primary?.usedPercent ?? -1, 72.5, accuracy: 0.01)
+        XCTAssertEqual(parsed.secondary?.usedPercent ?? -1, 67, accuracy: 0.01)
+        XCTAssertEqual(parsed.primary?.windowMinutes, 300)
+        let base = try XCTUnwrap(TranscriptParser.parseDate("2026-07-12T10:00:00.000Z"))
+        XCTAssertEqual(parsed.primary?.resetsAt?.timeIntervalSince(base) ?? -1, 7100, accuracy: 1)
+    }
+
+    func testCodexFlatRateLimitVariantAndModel() throws {
+        let line = """
+        {"timestamp":"2026-07-12T10:00:00Z","payload":{"type":"token_count","info":{"input_tokens":500,"output_tokens":100},"rate_limits":{"primary_used_percent":10,"secondary_used_percent":5}}}
+        """
+        let parsed = try XCTUnwrap(CodexParser.parseLine(line))
+        XCTAssertEqual(parsed.turnTokens, 600)
+        XCTAssertEqual(parsed.primary?.usedPercent ?? -1, 10, accuracy: 0.01)
+
+        let turnContext = """
+        {"timestamp":"2026-07-12T10:01:00Z","payload":{"type":"turn_context","model":"gpt-5.2-codex"}}
+        """
+        let ctx = try XCTUnwrap(CodexParser.parseLine(turnContext))
+        XCTAssertEqual(ctx.model, "gpt-5.2-codex")
+    }
+
+    func testCodexParserRejectsIrrelevantLines() {
+        XCTAssertNil(CodexParser.parseLine("{\"type\":\"user_message\"}"))
+        XCTAssertNil(CodexParser.parseLine("not json rate_limits"))
+    }
+
     // MARK: - Hook script
 
     func testHookScriptContent() {

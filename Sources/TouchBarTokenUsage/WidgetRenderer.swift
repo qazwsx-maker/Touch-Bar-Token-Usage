@@ -15,6 +15,8 @@ enum WidgetRenderer {
         var saber: Bool = false
         var frame: Int = 0
         var intensity: Double = 0
+        var fiveTitle: String = "5h"
+        var weekTitle: String = "7d"
     }
 
     struct Content {
@@ -42,6 +44,60 @@ enum WidgetRenderer {
         return barsImage(theme: theme, petImage: petImage, bars: content.bars!, height: height)
     }
 
+    // MARK: - Micro layout (~40pt, for the collapsed Control Strip slot)
+
+    /// Two thin stacked bars, no text — glanceable state at icon size.
+    static func microImage(theme: Theme, five: Double, week: Double,
+                           hasFive: Bool, hasWeek: Bool,
+                           alert: Bool, alertPhase: Bool,
+                           saber: Bool, frame: Int, intensity: Double,
+                           height: CGFloat = 30) -> NSImage {
+        let width: CGFloat = 40
+        let image = NSImage(size: NSSize(width: width, height: height))
+        image.lockFocus()
+
+        if alert {
+            (alertPhase ? theme.accent : theme.accent.withAlphaComponent(0.65)).setFill()
+            NSBezierPath(roundedRect: NSRect(x: 0, y: 1, width: width, height: height - 2),
+                         xRadius: 6, yRadius: 6).fill()
+            let hand = NSAttributedString(string: "✋", attributes: [
+                .font: NSFont.systemFont(ofSize: 14),
+                .foregroundColor: NSColor.white,
+            ])
+            hand.draw(at: NSPoint(x: (width - hand.size().width) / 2,
+                                  y: (height - hand.size().height) / 2))
+            image.unlockFocus()
+            return image
+        }
+
+        theme.background.setFill()
+        NSBezierPath(roundedRect: NSRect(x: 0, y: 1, width: width, height: height - 2),
+                     xRadius: 6, yRadius: 6).fill()
+
+        func bar(_ fraction: Double, _ hasData: Bool, _ y: CGFloat, _ offset: Int) {
+            let rect = NSRect(x: 5, y: y, width: width - 10, height: 4.5)
+            theme.text.withAlphaComponent(0.18).setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 2.25, yRadius: 2.25).fill()
+            guard hasData else { return }
+            let clamped = max(0, min(1, fraction))
+            if saber {
+                drawSaberBeam(theme: theme, fraction: clamped, in: rect,
+                              frame: frame &+ offset, intensity: intensity)
+            } else if clamped > 0 {
+                fillColor(theme: theme, fraction: clamped).setFill()
+                NSBezierPath(roundedRect: NSRect(x: rect.minX, y: rect.minY,
+                                                 width: max(rect.height, rect.width * CGFloat(clamped)),
+                                                 height: rect.height),
+                             xRadius: 2.25, yRadius: 2.25).fill()
+            }
+        }
+        bar(five, hasFive, 17, 0)
+        bar(week, hasWeek, 8.5, 17)
+
+        image.unlockFocus()
+        return image
+    }
+
     // MARK: - Compact bars layout (fits the Control Strip budget)
 
     private static func barsImage(theme: Theme, petImage: NSImage?, bars: Bars, height: CGFloat) -> NSImage {
@@ -63,10 +119,10 @@ enum WidgetRenderer {
         }
 
         let x = 5 + petWidth
-        drawInlineBar(theme: theme, label: "5h", fraction: bars.fiveFraction, pctText: bars.fiveLabel,
+        drawInlineBar(theme: theme, label: bars.fiveTitle, fraction: bars.fiveFraction, pctText: bars.fiveLabel,
                       in: NSRect(x: x, y: 16.5, width: barWidth, height: 8),
                       saber: bars.saber, frame: bars.frame, intensity: bars.intensity)
-        drawInlineBar(theme: theme, label: "7d", fraction: bars.weekFraction, pctText: bars.weekLabel,
+        drawInlineBar(theme: theme, label: bars.weekTitle, fraction: bars.weekFraction, pctText: bars.weekLabel,
                       in: NSRect(x: x, y: 5, width: barWidth, height: 8),
                       saber: bars.saber, frame: bars.frame &+ 17, intensity: bars.intensity)
 
@@ -246,28 +302,36 @@ enum WidgetRenderer {
     }
 }
 
-/// Full-width 5h/weekly bars for the expanded (tap-to-open) touch bar:
-/// [pet]  5h [==============      ] 63%   —   Wk [======    ] 60%
+/// Full-width persistent bar, styled after a status-line HUD:
+///   5H ▁▁▁▁▁▁  ↻1:42 · 100%   7D ▁▁▁  ↻Sat 05:59 · 13%   TODAY 1.28M·$4.32   MODEL sonnet-5
+/// Thin 3.5pt tracks with the info line above; width adapts to what the
+/// Touch Bar actually grants (low compression resistance, no hard 720pt).
+struct FullBarsDisplay {
+    struct Segment {
+        var label: String
+        var info: String
+        var fraction: Double
+    }
+    struct Stack {
+        var title: String
+        var value: String
+    }
+    var segments: [Segment] = []
+    var stacks: [Stack] = []
+}
+
 final class FullBarsView: NSView {
     private var theme: Theme?
-    private var fiveFraction: Double = 0
-    private var weekFraction: Double = 0
-    private var fiveText = "–"
-    private var weekText = "–"
-    private var fiveDetail = ""
+    private var display = FullBarsDisplay()
     private var saber = false
     private var animFrame = 0
     private var intensity: Double = 0
 
-    override var intrinsicContentSize: NSSize { NSSize(width: 720, height: 30) }
+    override var intrinsicContentSize: NSSize { NSSize(width: 620, height: 30) }
 
-    func apply(snapshot: UsageMonitor.Snapshot, theme: Theme, resetDisplay: String) {
+    func apply(display: FullBarsDisplay, theme: Theme) {
+        self.display = display
         self.theme = theme
-        fiveFraction = snapshot.fiveHourFraction
-        weekFraction = snapshot.weeklyFraction
-        fiveText = snapshot.fiveHourLimit > 0 ? Fmt.percent(snapshot.fiveHourFraction) : "–"
-        weekText = snapshot.weeklyLimit > 0 ? Fmt.percent(snapshot.weeklyFraction) : "–"
-        fiveDetail = resetDisplay
         needsDisplay = true
     }
 
@@ -283,48 +347,46 @@ final class FullBarsView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        guard let theme = theme else { return }
-        let gap: CGFloat = 26
-        let segWidth = (bounds.width - gap) / 2
-        drawSegment(label: "5h", fraction: fiveFraction, pctText: fiveText, detail: fiveDetail,
-                    in: NSRect(x: 0, y: 0, width: segWidth, height: bounds.height), theme: theme,
-                    frameOffset: 0)
-        theme.secondaryText.withAlphaComponent(0.45).setFill()
-        NSRect(x: segWidth + gap / 2 - 4, y: bounds.midY - 1, width: 8, height: 2).fill()
-        drawSegment(label: "Wk", fraction: weekFraction, pctText: weekText, detail: "",
-                    in: NSRect(x: segWidth + gap, y: 0, width: segWidth, height: bounds.height), theme: theme,
-                    frameOffset: 17)
+        guard let theme = theme, !display.segments.isEmpty else { return }
+        let gap: CGFloat = 14
+        let stackWidth: CGFloat = 112
+        let stacksTotal = CGFloat(display.stacks.count) * (stackWidth + 6)
+        let segCount = CGFloat(display.segments.count)
+        let segWidth = max(90, (bounds.width - stacksTotal - gap * (segCount - 1)
+            - (display.stacks.isEmpty ? 0 : gap)) / segCount)
+
+        var x: CGFloat = 0
+        for (index, segment) in display.segments.enumerated() {
+            drawThinSegment(label: segment.label, info: segment.info, fraction: segment.fraction,
+                            x: x, width: segWidth, theme: theme, frameOffset: index * 17)
+            x += segWidth + gap
+        }
+        if !display.stacks.isEmpty {
+            for stack in display.stacks {
+                drawStack(title: stack.title, value: stack.value, x: x, width: stackWidth, theme: theme)
+                x += stackWidth + 6
+            }
+        }
     }
 
-    private func drawSegment(label: String, fraction: Double, pctText: String, detail: String,
-                             in rect: NSRect, theme: Theme, frameOffset: Int) {
+    private func drawThinSegment(label: String, info: String, fraction: Double,
+                                 x: CGFloat, width: CGFloat, theme: Theme, frameOffset: Int) {
         let labelString = NSAttributedString(string: label, attributes: [
-            .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold),
+            .font: NSFont.systemFont(ofSize: 8.5, weight: .bold),
             .foregroundColor: theme.secondaryText,
         ])
-        var pctDisplay = pctText
-        if !detail.isEmpty {
-            pctDisplay += " " + detail
-        }
-        let pctString = NSAttributedString(string: pctDisplay, attributes: [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold),
+        labelString.draw(at: NSPoint(x: x, y: 11))
+        let labelWidth = labelString.size().width + 6
+
+        let infoString = NSAttributedString(string: info, attributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .semibold),
             .foregroundColor: theme.text,
         ])
+        infoString.draw(at: NSPoint(x: x + labelWidth, y: 16))
 
-        let labelWidth: CGFloat = 27
-        let pctWidth = pctString.size().width + 8
-        let trackX = rect.minX + labelWidth
-        let trackWidth = max(40, rect.width - labelWidth - pctWidth)
-        let barHeight: CGFloat = 12
-        let barY = rect.midY - barHeight / 2
-
-        labelString.draw(at: NSPoint(x: rect.minX,
-                                     y: rect.midY - labelString.size().height / 2))
-
-        theme.text.withAlphaComponent(saber ? 0.12 : 0.16).setFill()
-        let trackRect = NSRect(x: trackX, y: barY, width: trackWidth, height: barHeight)
-        NSBezierPath(roundedRect: trackRect,
-                     xRadius: barHeight / 2, yRadius: barHeight / 2).fill()
+        let trackRect = NSRect(x: x + labelWidth, y: 6, width: max(30, width - labelWidth), height: 3.5)
+        theme.text.withAlphaComponent(saber ? 0.12 : 0.18).setFill()
+        NSBezierPath(roundedRect: trackRect, xRadius: 1.75, yRadius: 1.75).fill()
 
         let clamped = max(0, min(1, fraction))
         if saber {
@@ -332,13 +394,24 @@ final class FullBarsView: NSView {
                                          frame: animFrame &+ frameOffset, intensity: intensity)
         } else if clamped > 0 {
             WidgetRenderer.fillColor(theme: theme, fraction: clamped).setFill()
-            NSBezierPath(roundedRect: NSRect(x: trackX, y: barY,
-                                             width: max(barHeight, trackWidth * CGFloat(clamped)),
-                                             height: barHeight),
-                         xRadius: barHeight / 2, yRadius: barHeight / 2).fill()
+            NSBezierPath(roundedRect: NSRect(x: trackRect.minX, y: trackRect.minY,
+                                             width: max(trackRect.height, trackRect.width * CGFloat(clamped)),
+                                             height: trackRect.height),
+                         xRadius: 1.75, yRadius: 1.75).fill()
         }
+    }
 
-        pctString.draw(at: NSPoint(x: trackX + trackWidth + 8,
-                                   y: rect.midY - pctString.size().height / 2))
+    private func drawStack(title: String, value: String, x: CGFloat, width: CGFloat, theme: Theme) {
+        let titleString = NSAttributedString(string: title, attributes: [
+            .font: NSFont.systemFont(ofSize: 6.5, weight: .bold),
+            .foregroundColor: theme.secondaryText,
+        ])
+        titleString.draw(at: NSPoint(x: x, y: 19))
+
+        let valueString = NSAttributedString(string: Fmt.truncate(value, max: 24), attributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .semibold),
+            .foregroundColor: theme.text,
+        ])
+        valueString.draw(at: NSPoint(x: x, y: 5))
     }
 }
