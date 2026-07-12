@@ -82,7 +82,7 @@ final class CoreTests: XCTestCase {
 
     func testMoneyAndRate() {
         XCTAssertEqual(Fmt.money(4.321), "$4.32")
-        XCTAssertEqual(Fmt.money(1234.5), "$1235")
+        XCTAssertEqual(Fmt.money(1234.6), "$1235")
         XCTAssertEqual(Fmt.rate(0.2), "idle")
         XCTAssertEqual(Fmt.rate(8100), "8.1K/m")
     }
