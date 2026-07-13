@@ -341,10 +341,14 @@ enum PetSprites {
 }
 
 /// Small self-animating pet view used in the modal touch bar and previews.
+/// Pixel pet in the Touch Bar. Renders each frame as an image shown through a
+/// layer-backed NSImageView — a plain `draw()` view goes blank when the app is
+/// inactive (which is nearly always, since the bar lives under other apps), so
+/// the image path is used to keep the pet visible everywhere.
 final class AnimatedPetView: NSView {
-    var kind: PetKind = .penguin { didSet { needsDisplay = true } }
-    var color: NSColor = .white { didSet { needsDisplay = true } }
-    var running = true { didSet { needsDisplay = true } }
+    var kind: PetKind = .penguin { didSet { refresh() } }
+    var color: NSColor = .white { didSet { refresh() } }
+    var running = true { didSet { refresh() } }
     var fps: Double = 6 {
         didSet {
             if abs(fps - oldValue) > 0.01, timer != nil {
@@ -355,8 +359,25 @@ final class AnimatedPetView: NSView {
 
     private var frameIndex = 0
     private var timer: Timer?
+    private let imageView = NSImageView()
 
     override var intrinsicContentSize: NSSize { NSSize(width: 44, height: 30) }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        imageView.wantsLayer = true
+        imageView.imageScaling = .scaleNone
+        imageView.imageAlignment = .alignCenter
+        imageView.autoresizingMask = [.width, .height]
+        imageView.frame = bounds
+        addSubview(imageView)
+        refresh()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
 
     func start() {
         startTimer()
@@ -373,17 +394,14 @@ final class AnimatedPetView: NSView {
         let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             self.frameIndex &+= 1
-            self.needsDisplay = true
+            self.refresh()
         }
         RunLoop.main.add(t, forMode: .common)
         timer = t
     }
 
-    override func draw(_ dirtyRect: NSRect) {
-        guard let image = PetSprites.image(kind: kind, frame: frameIndex, running: running, color: color) else { return }
-        let x = (bounds.width - image.size.width) / 2
-        let y = (bounds.height - image.size.height) / 2
-        image.draw(in: NSRect(x: x, y: y, width: image.size.width, height: image.size.height))
+    private func refresh() {
+        imageView.image = PetSprites.image(kind: kind, frame: frameIndex, running: running, color: color)
     }
 
     deinit {

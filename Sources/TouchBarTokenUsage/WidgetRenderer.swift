@@ -329,18 +329,63 @@ struct FullBarsDisplay {
     var clusters: [Cluster] = []
 }
 
+/// The full-width HUD. A custom NSView's `draw(_:)` does **not** repaint while
+/// the app is in the background (which is most of the time — the bar lives
+/// under Claude Desktop, the terminal, etc.), so the content would go blank
+/// the moment the app lost focus. Instead we render into an NSImage and show it
+/// through a child NSImageView: setting `.image` pushes a fresh bitmap that the
+/// Touch Bar composites regardless of app-active state — the same mechanism the
+/// compact Control-Strip widget already uses reliably.
 final class FullBarsView: NSView {
     private var display = FullBarsDisplay()
+    private let imageView = NSImageView()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        // Layer-backed so the image composites via Core Animation (which keeps
+        // updating while the app is inactive) rather than the view `draw()`
+        // cycle (which the system throttles for background apps).
+        wantsLayer = true
+        imageView.wantsLayer = true
+        imageView.imageScaling = .scaleNone
+        imageView.imageAlignment = .alignLeft
+        imageView.autoresizingMask = [.width, .height]
+        imageView.frame = bounds
+        addSubview(imageView)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
 
     override var intrinsicContentSize: NSSize { NSSize(width: 620, height: 30) }
 
     func apply(display: FullBarsDisplay, theme: Theme) {
         self.display = display
-        needsDisplay = true
+        renderImage()
     }
 
     /// Kept for the controller's animation tick; this layout is static.
     func animate(frame: Int, saber: Bool, intensity: Double) {}
+
+    override func layout() {
+        super.layout()
+        imageView.frame = bounds
+        renderImage()  // re-render once the Touch Bar has given us a real width
+    }
+
+    private func renderImage() {
+        let size = bounds.size
+        guard size.width >= 2, size.height >= 2, !display.clusters.isEmpty else {
+            imageView.image = nil
+            return
+        }
+        let image = NSImage(size: size)
+        image.lockFocus()
+        drawContent(width: size.width)
+        image.unlockFocus()
+        imageView.image = image
+    }
 
     // Fixed HUD palette (the Touch Bar is always black glass).
     private static let claudeBrand = NSColor(red: 0.85, green: 0.47, blue: 0.34, alpha: 1)   // #D97757
@@ -402,13 +447,15 @@ final class FullBarsView: NSView {
         return Columns(name: nameW, pct: pctW, left: leftW, reset: resetW, fixed: fixed)
     }
 
-    override func draw(_ dirtyRect: NSRect) {
+    /// Draws the whole HUD into the current graphics context, laying the cards
+    /// out across `width` points. Called from `renderImage()` inside an NSImage.
+    private func drawContent(width: CGFloat) {
         guard !display.clusters.isEmpty else { return }
         let clusterGap: CGFloat = 16
         let columns = display.clusters.map(measure)
         let fixedTotal = columns.reduce(0) { $0 + $1.fixed }
         let count = CGFloat(display.clusters.count)
-        let barsWidth = max(36, (bounds.width - fixedTotal - clusterGap * (count - 1) - 2) / count)
+        let barsWidth = max(36, (width - fixedTotal - clusterGap * (count - 1) - 2) / count)
 
         var x: CGFloat = 0
         for (cluster, cols) in zip(display.clusters, columns) {
