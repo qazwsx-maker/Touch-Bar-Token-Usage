@@ -39,6 +39,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     private var animTimer: Timer?
     private var representTimer: Timer?
+    private var appSwitchObserver: NSObjectProtocol?
     private var frameIndex = 0
     private var alertPhase = false
     private var lastInterval: TimeInterval = 0
@@ -92,11 +93,28 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         }
         RunLoop.main.add(t, forMode: .common)
         representTimer = t
+
+        // Another app becoming frontmost (e.g. Claude Desktop) swaps the Touch
+        // Bar to its own — re-assert ours so the HUD stays visible everywhere.
+        // `isVisible` lags right after a switch, so force the re-present.
+        appSwitchObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil, queue: .main) { [weak self] _ in
+            guard let self = self, self.available, self.settings.widgetModeIsFull else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                guard self.settings.widgetModeIsFull else { return }
+                self.presentModal(auto: false, force: true)
+            }
+        }
     }
 
     func tearDown() {
         animTimer?.invalidate()
         representTimer?.invalidate()
+        if let observer = appSwitchObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+            appSwitchObserver = nil
+        }
         guard available, let item = stripItem else { return }
         dismissModal()
         TBPSetControlStripPresence(Self.trayItemIdentifier, false)
@@ -332,8 +350,19 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             let weekFrac = codex ? codexSnapshot.weeklyFraction : snapshot.weeklyFraction
             let weekHas = codex ? codexSnapshot.weeklyHasData : snapshot.weeklyHasData
 
-            var fiveLabel = fiveHas ? Fmt.percent(fiveFrac) : "–"
-            // The strip has no room for both — alternate % and reset time
+            // Claude local estimates aren't a real percentage — label the bars
+            // with the token count instead of a fabricated %. Codex percentages
+            // are real (from its own rate_limits).
+            let estimate = !codex && snapshot.quotaSource != "api"
+            var fiveLabel: String
+            if !fiveHas {
+                fiveLabel = "–"
+            } else if estimate {
+                fiveLabel = Fmt.abbrev(snapshot.fiveHourTokens)
+            } else {
+                fiveLabel = Fmt.percent(fiveFrac)
+            }
+            // The strip has no room for both — alternate value and reset time
             // inside the 5h bar every few seconds.
             if let reset = AppFmt.resetDisplay(resetAt: fiveResetAt,
                                                hasData: fiveHas,
@@ -341,12 +370,20 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                Int(Date().timeIntervalSince1970 / 4) % 2 == 1 {
                 fiveLabel = reset
             }
+            let weekLabel: String
+            if !weekHas {
+                weekLabel = "–"
+            } else if estimate {
+                weekLabel = Fmt.abbrev(snapshot.weeklyTokens)
+            } else {
+                weekLabel = Fmt.percent(weekFrac)
+            }
             let both = settings.provider == "both"
             let bars = WidgetRenderer.Bars(
                 fiveFraction: fiveFrac,
                 fiveLabel: fiveLabel,
                 weekFraction: weekFrac,
-                weekLabel: weekHas ? Fmt.percent(weekFrac) : "–",
+                weekLabel: weekLabel,
                 saber: saberOn,
                 frame: frameIndex,
                 intensity: saberIntensity,
@@ -406,7 +443,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     // MARK: - Modal bar
 
-    func presentModal(auto: Bool) {
+    func presentModal(auto: Bool, force: Bool = false) {
         guard available else { return }
         if modalBar == nil {
             let bar = NSTouchBar()
@@ -415,13 +452,15 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         }
         refreshModalItems()
         // Trust the bar's actual visibility, not our flag — the system can
-        // dismiss a modal bar behind our back (esc, other takeovers).
+        // dismiss a modal bar behind our back (esc, other takeovers). On an
+        // app switch `isVisible` is unreliable, so `force` re-presents anyway.
         let visible = modalBar?.isVisible ?? false
-        if !visible {
+        if force || !visible {
             TBPPresentSystemModal(modalBar!, Self.trayItemIdentifier)
             presentedAutomatically = auto
         }
         modalPresented = true
+        updateModalContent()  // push current data immediately, no empty first frame
     }
 
     func dismissModal() {
@@ -508,11 +547,20 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         statsLabel?.stringValue = text
 
         // Full-width HUD: one provider card per enabled provider.
-        func hudRow(_ title: String, _ fraction: Double, _ hasData: Bool) -> FullBarsDisplay.Row {
+        // `estimate` = a local guess with no real ceiling; show the token
+        // count instead of a fabricated percentage.
+        func hudRow(_ title: String, _ fraction: Double, _ hasData: Bool,
+                    estimate: Bool, tokens: Int) -> FullBarsDisplay.Row {
+            guard hasData else {
+                return .init(title: title, fraction: 0, hasData: false, usedText: "—", leftText: "—")
+            }
+            if estimate {
+                return .init(title: title, fraction: fraction, hasData: true,
+                             usedText: Fmt.abbrev(tokens), leftText: "est", estimate: true)
+            }
             let pct = Int((max(0, min(1, fraction)) * 100).rounded())
-            return .init(title: title, fraction: fraction, hasData: hasData,
-                         usedText: hasData ? "\(pct)%" : "—",
-                         leftText: hasData ? "\(max(0, 100 - pct))%L" : "—")
+            return .init(title: title, fraction: fraction, hasData: true,
+                         usedText: "\(pct)%", leftText: "\(max(0, 100 - pct))%L")
         }
         // First upcoming reset wins: the 5h block if it has one, else weekly.
         func hudReset(_ candidates: [(Date?, Bool)]) -> String {
@@ -528,25 +576,32 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         if includeClaude {
             let hasAny = snapshot.fiveHourHasData || snapshot.weeklyHasData
             let live = snapshot.quotaSource == "api"
+            let est = !live  // local estimates: percentages aren't real
             display.clusters.append(.init(
                 kind: .claude,
                 name: "Claude",
                 statusText: live ? "Live" : (hasAny ? "Est." : "—"),
                 tone: live ? .live : (hasAny ? .estimate : .off),
-                rows: [hudRow("5h", snapshot.fiveHourFraction, snapshot.fiveHourHasData),
-                       hudRow("Wk", snapshot.weeklyFraction, snapshot.weeklyHasData)],
+                rows: [hudRow("5h", snapshot.fiveHourFraction, snapshot.fiveHourHasData,
+                              estimate: est, tokens: snapshot.fiveHourTokens),
+                       hudRow("Wk", snapshot.weeklyFraction, snapshot.weeklyHasData,
+                              estimate: est, tokens: snapshot.weeklyTokens)],
                 resetText: hudReset([(snapshot.fiveHourResetAt, snapshot.fiveHourHasData),
                                      (snapshot.weeklyResetAt, snapshot.weeklyHasData)])))
         }
         if includeCodex {
             let hasAny = codexSnapshot.fiveHourHasData || codexSnapshot.weeklyHasData
+            // Codex percentages come straight from its own rate_limits, so
+            // they're real when present.
             display.clusters.append(.init(
                 kind: .codex,
                 name: "GPT Codex",
                 statusText: hasAny ? "Live" : "—",
                 tone: hasAny ? .live : .off,
-                rows: [hudRow("5h", codexSnapshot.fiveHourFraction, codexSnapshot.fiveHourHasData),
-                       hudRow("Wk", codexSnapshot.weeklyFraction, codexSnapshot.weeklyHasData)],
+                rows: [hudRow("5h", codexSnapshot.fiveHourFraction, codexSnapshot.fiveHourHasData,
+                              estimate: false, tokens: 0),
+                       hudRow("Wk", codexSnapshot.weeklyFraction, codexSnapshot.weeklyHasData,
+                              estimate: false, tokens: 0)],
                 resetText: hudReset([(codexSnapshot.fiveHourResetAt, codexSnapshot.fiveHourHasData),
                                      (codexSnapshot.weeklyResetAt, codexSnapshot.weeklyHasData)])))
         }

@@ -314,8 +314,9 @@ struct FullBarsDisplay {
         var title: String     // "5h" / "Wk"
         var fraction: Double
         var hasData: Bool
-        var usedText: String  // "85%" / "—"
-        var leftText: String  // "15%L" / "—"
+        var usedText: String  // "85%" / "31M" (estimate) / "—"
+        var leftText: String  // "15%L" / "est" / "—"
+        var estimate: Bool = false  // local guess: show tokens, mute the bar
     }
     struct Cluster {
         var kind: Kind
@@ -451,12 +452,13 @@ final class FullBarsView: NSView {
         }
         x += cols.pct + 6
 
-        // Capsule bars + "%L" left labels.
+        // Capsule bars + "%L" left labels (or "est" for local guesses).
         let trackY: [CGFloat] = [19.5, 6]
         for (index, row) in cluster.rows.prefix(2).enumerated() {
             let track = NSRect(x: x, y: trackY[index], width: barsWidth, height: 5)
             drawCapsuleBar(row: row, kind: cluster.kind, rowIndex: index, in: track)
-            str(row.leftText, size: 7.5, weight: .medium, color: Self.secondary, mono: true)
+            let labelColor = row.estimate ? Self.secondary.withAlphaComponent(0.5) : Self.secondary
+            str(row.leftText, size: 7.5, weight: .medium, color: labelColor, mono: true)
                 .draw(at: NSPoint(x: x + barsWidth + 4, y: trackY[index] - 2))
         }
         x += barsWidth + 4 + cols.left + 8
@@ -482,7 +484,9 @@ final class FullBarsView: NSView {
     private func drawCapsuleBar(row: FullBarsDisplay.Row, kind: FullBarsDisplay.Kind,
                                 rowIndex: Int, in rect: NSRect) {
         let radius = rect.height / 2
-        guard row.hasData else {
+        // No data, or a local estimate we don't trust as a percentage: just a
+        // muted track. The token count in usedText carries the real signal.
+        guard row.hasData, !row.estimate else {
             NSColor.white.withAlphaComponent(0.14).setFill()
             NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
             return

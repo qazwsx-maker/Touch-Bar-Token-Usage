@@ -147,7 +147,9 @@ Open the menu bar icon and read the **Quota:** line — it names the source in u
 - **no Claude Code login on this Mac** — log into Claude Code on this machine once, then **Refresh Claude Quota**.
 - **Claude login expired** — open Claude Code once (it refreshes the token), then **Refresh Claude Quota**.
 
-Since the app is ad-hoc signed, each update looks like a new app to macOS, so the Keychain prompt can reappear **once per update**. On a fallback, the bars show local estimates against your own historical maximum — that's why weekly can read 100% even when `/usage` says less.
+Since the app is ad-hoc signed, each update looks like a new app to macOS, so the Keychain prompt can reappear **once per update**. On a fallback the bars stop guessing a percentage and show your **token counts** instead (marked `est`), because a local guess against your own history is not your real quota.
+
+Still wrong while the menu says *live from Claude API*? The exact response is saved to `~/.claude/touchbar-usage/usage-debug.json` (percentages and reset times only — no token) — open an issue with that file and the numbers will get mapped.
 </details>
 
 <details><summary><b>Numbers show 0</b></summary>

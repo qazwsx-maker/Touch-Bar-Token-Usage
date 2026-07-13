@@ -151,21 +151,27 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             }
             info("Quota: live from Claude API ✓")
         } else {
-            if snapshot.fiveHourHasData {
-                var line = "5-hour block: \(Fmt.abbrev(snapshot.fiveHourTokens)) / \(Fmt.abbrev(snapshot.fiveHourLimit))"
-                    + " (\(Fmt.percent(snapshot.fiveHourFraction))\(snapshot.fiveHourLimitIsAuto ? " of your max" : ""))"
-                if let reset = fiveReset {
-                    line += " · \(reset)"
-                }
+            // Local estimate. With a custom limit we can show a real percent;
+            // on auto there is no true ceiling, so show tokens only — a made-up
+            // "% of your max" reads as a real quota and misleads.
+            if snapshot.fiveHourLimitIsAuto {
+                var line = "5-hour block: \(Fmt.abbrev(snapshot.fiveHourTokens)) tokens"
+                if let reset = fiveReset { line += " · \(reset)" }
                 info(line)
             } else {
-                info("5-hour block: \(Fmt.abbrev(snapshot.fiveHourTokens)) (no history yet)")
+                var line = "5-hour block: \(Fmt.abbrev(snapshot.fiveHourTokens)) / \(Fmt.abbrev(snapshot.fiveHourLimit))"
+                    + " (\(Fmt.percent(snapshot.fiveHourFraction)))"
+                if let reset = fiveReset { line += " · \(reset)" }
+                info(line)
             }
-            if snapshot.weeklyHasData {
+            if snapshot.weeklyLimitIsAuto {
+                info("Weekly (7d): \(Fmt.abbrev(snapshot.weeklyTokens)) tokens")
+            } else {
                 info("Weekly (7d): \(Fmt.abbrev(snapshot.weeklyTokens)) / \(Fmt.abbrev(snapshot.weeklyLimit))"
-                    + " (\(Fmt.percent(snapshot.weeklyFraction))\(snapshot.weeklyLimitIsAuto ? " of your max" : ""))")
+                    + " (\(Fmt.percent(snapshot.weeklyFraction)))")
             }
             info("Quota: \(quotaStatus)")
+            info("   ↳ real % needs the Claude login — see below, or set a limit in Preferences")
             action("Refresh Claude Quota", #selector(refreshQuota))
         }
         if let model = snapshot.lastModel {

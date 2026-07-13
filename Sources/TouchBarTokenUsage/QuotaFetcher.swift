@@ -214,6 +214,9 @@ final class QuotaFetcher {
                     self.deliver(nil, "local estimate (Claude API unreachable)")
                     return
                 }
+                // Always record the raw response so a wrong number can be
+                // diagnosed from the file instead of guessing the API shape.
+                self.dumpDebug(status: http.statusCode, body: data)
                 if http.statusCode == 200, let data = data, let quota = QuotaParser.parse(data) {
                     self.suspendCredentialReadsUntil = nil
                     self.deliver(quota, "live from Claude API")
@@ -221,12 +224,33 @@ final class QuotaFetcher {
                     self.cachedToken = nil
                     self.suspendCredentialReadsUntil = Date().addingTimeInterval(10 * 60)
                     self.deliver(nil, "local estimate (Claude login expired — open Claude Code once, then “Refresh Claude Quota”)")
+                } else if http.statusCode == 200 {
+                    // Token worked but we couldn't map the response — the dump
+                    // file has the shape to teach the parser.
+                    self.deliver(nil, "local estimate (Claude API 200 but response not recognized — see usage-debug.json)")
                 } else {
                     self.deliver(nil, "local estimate (Claude API \(http.statusCode))")
                 }
             }
         }
         task.resume()
+    }
+
+    /// Writes the latest usage response to
+    /// ~/.claude/touchbar-usage/usage-debug.json for troubleshooting mismatched
+    /// numbers. Contains only quota percentages/reset times — no token.
+    private func dumpDebug(status: Int, body: Data?) {
+        let dir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/touchbar-usage")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("usage-debug.json")
+        var text = "// HTTP \(status) — GET /api/oauth/usage\n"
+        if let body = body, let s = String(data: body, encoding: .utf8) {
+            text += s
+        } else {
+            text += "(empty body)"
+        }
+        try? text.write(to: file, atomically: true, encoding: .utf8)
     }
 
     private func deliver(_ quota: Quota?, _ status: String) {

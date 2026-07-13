@@ -314,6 +314,29 @@ final class CoreTests: XCTestCase {
         XCTAssertNil(QuotaParser.parse(Data("{\"five_hour\":{}}".utf8)))
     }
 
+    func testQuotaParserDeeplyNestedWrapper() throws {
+        // Windows buried under wrapper keys the parser doesn't hard-code.
+        let json = """
+        {"data":{"rate_limits":{"five_hour":{"used_percent":16,"resets_in_seconds":3600},
+         "seven_day_all_models":{"used_percent":16,"resets_at":"2026-07-18T05:59:00Z"}}}}
+        """
+        let quota = try XCTUnwrap(QuotaParser.parse(Data(json.utf8)))
+        XCTAssertEqual(quota.fiveHour?.utilization ?? -1, 0.16, accuracy: 0.001)
+        XCTAssertEqual(quota.sevenDay?.utilization ?? -1, 0.16, accuracy: 0.001)
+        // relative reset resolves to ~1h out
+        let secs = quota.fiveHour?.resetsAt?.timeIntervalSinceNow ?? -1
+        XCTAssertEqual(secs, 3600, accuracy: 30)
+    }
+
+    func testQuotaParserSpecificSevenDayWins() throws {
+        // Both a bare seven_day and an all-models variant: prefer all-models.
+        let json = """
+        {"seven_day":{"utilization":5},"seven_day_all_models":{"utilization":16}}
+        """
+        let quota = try XCTUnwrap(QuotaParser.parse(Data(json.utf8)))
+        XCTAssertEqual(quota.sevenDay?.utilization ?? -1, 0.16, accuracy: 0.001)
+    }
+
     // MARK: - Codex parser
 
     func testCodexTokenCountWithRateLimits() throws {
