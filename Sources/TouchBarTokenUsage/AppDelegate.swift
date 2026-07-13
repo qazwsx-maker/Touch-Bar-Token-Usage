@@ -3,7 +3,7 @@ import Combine
 import TBTCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    static let version = "0.5.0"
+    static let version = "0.5.1"
 
     let settings = Settings.shared
     private let hookInstaller = HookInstaller()
@@ -93,6 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.monitor.setQuota(quota)
             self?.statusController.quotaStatus = status
         }
+        statusController.onRefreshQuota = { [weak self] in self?.quotaFetcher.retryNow() }
 
         touchBarController.setUp()
         statusController.touchBarAvailable = touchBarController.available
