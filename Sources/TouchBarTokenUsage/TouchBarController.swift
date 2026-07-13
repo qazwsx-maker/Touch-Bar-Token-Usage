@@ -600,12 +600,13 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
         case .tbtFullBars:
             let item = NSCustomTouchBarItem(identifier: identifier)
-            let view = FullBarsView(frame: NSRect(x: 0, y: 0, width: 620, height: 30))
-            // Let the bar squeeze this view instead of dropping it when the
-            // Touch Bar is narrower than our ideal width — and let it stretch
-            // to claim whatever width is spare (the cards' bars flex).
-            view.setContentCompressionResistancePriority(NSLayoutConstraint.Priority(240), for: .horizontal)
-            view.setContentHuggingPriority(NSLayoutConstraint.Priority(240), for: .horizontal)
+            // ponytail: 540pt is an empirically-measured ceiling on this
+            // MacBookPro16,1 running macOS 26.5.1 — a system-modal touch bar
+            // item wider than ~560-600pt is silently dropped (never attached
+            // to a window, never drawn) instead of being compressed by Auto
+            // Layout. Re-bisect with FullBarsView.draw()/apply() logging if
+            // this needs to grow again on other hardware.
+            let view = FullBarsView(frame: NSRect(x: 0, y: 0, width: 540, height: 30))
             fullBarsView = view
             item.view = view
             updateModalContent()
