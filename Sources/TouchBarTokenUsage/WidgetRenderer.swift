@@ -332,7 +332,7 @@ struct FullBarsDisplay {
 final class FullBarsView: NSView {
     private var display = FullBarsDisplay()
 
-    override var intrinsicContentSize: NSSize { NSSize(width: 620, height: 30) }
+    override var intrinsicContentSize: NSSize { NSSize(width: 540, height: 30) }
 
     func apply(display: FullBarsDisplay, theme: Theme) {
         self.display = display
