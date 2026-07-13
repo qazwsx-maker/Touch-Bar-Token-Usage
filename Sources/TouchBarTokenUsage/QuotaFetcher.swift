@@ -137,16 +137,34 @@ final class QuotaFetcher {
     }
 
     /// Reused between polls so the Keychain is not re-read (and cannot
-    /// re-prompt) every 60 seconds.
+    /// re-prompt) every poll.
     private var cachedToken: CachedToken?
     /// After a credentials-level failure, skip automatic re-reads until this
     /// moment so a denied prompt doesn't reappear once a minute. Manual
     /// "Refresh Claude Quota" clears it.
     private var suspendCredentialReadsUntil: Date?
 
+    /// Don't hit the network before this — the usage endpoint rate-limits
+    /// (429), so successes poll every few minutes and errors back off.
+    private var nextFetchAt: Date?
+    private var backoffStep = 0
+
+    /// The last real quota we got. Kept so a transient 429/5xx/offline blip
+    /// keeps showing the true numbers instead of dumping to a local estimate.
+    private var lastGoodQuota: Quota?
+    private var lastGoodAt: Date?
+
+    /// Normal gap between successful polls. Usage moves slowly; the endpoint
+    /// does not want per-minute traffic.
+    private static let successInterval: TimeInterval = 180
+    /// A cached real value stays trustworthy this long during rate-limits.
+    private static let cacheGoodFor: TimeInterval = 30 * 60
+
     func start() {
         let t = DispatchSource.makeTimerSource(queue: queue)
-        t.schedule(deadline: .now() + .seconds(1), repeating: .seconds(60))
+        // Fire often; `nextFetchAt` gates actual network calls so back-off is
+        // honoured without missing the moment a back-off window expires.
+        t.schedule(deadline: .now() + .seconds(1), repeating: .seconds(20))
         t.setEventHandler { [weak self] in
             self?.fetch()
         }
@@ -165,11 +183,16 @@ final class QuotaFetcher {
             guard let self = self else { return }
             self.cachedToken = nil
             self.suspendCredentialReadsUntil = nil
+            self.nextFetchAt = nil
+            self.backoffStep = 0
             self.fetch(force: true)
         }
     }
 
     private func fetch(force: Bool = false) {
+        if !force, let next = nextFetchAt, Date() < next {
+            return  // inside a poll gap or back-off window
+        }
         var token: String?
         if let cached = cachedToken, cached.isUsable {
             token = cached.value
@@ -211,7 +234,10 @@ final class QuotaFetcher {
             guard let self = self else { return }
             self.queue.async {
                 guard let http = response as? HTTPURLResponse else {
-                    self.deliver(nil, "local estimate (Claude API unreachable)")
+                    // Network blip: keep the last real value if it's fresh.
+                    self.scheduleNext(5 * 60)
+                    self.deliverCachedOr(nil, "local estimate (Claude API unreachable)",
+                                         cachedNote: "offline")
                     return
                 }
                 // Always record the raw response so a wrong number can be
@@ -219,21 +245,69 @@ final class QuotaFetcher {
                 self.dumpDebug(status: http.statusCode, body: data)
                 if http.statusCode == 200, let data = data, let quota = QuotaParser.parse(data) {
                     self.suspendCredentialReadsUntil = nil
+                    self.backoffStep = 0
+                    self.lastGoodQuota = quota
+                    self.lastGoodAt = Date()
+                    self.scheduleNext(Self.successInterval)
                     self.deliver(quota, "live from Claude API")
                 } else if http.statusCode == 401 || http.statusCode == 403 {
                     self.cachedToken = nil
                     self.suspendCredentialReadsUntil = Date().addingTimeInterval(10 * 60)
+                    self.scheduleNext(10 * 60)
                     self.deliver(nil, "local estimate (Claude login expired — open Claude Code once, then “Refresh Claude Quota”)")
+                } else if http.statusCode == 429 {
+                    // Rate-limited. The token is fine — just back off (honour
+                    // Retry-After) and keep showing the last real numbers.
+                    let retry = self.retryAfterSeconds(http) ?? self.backoff()
+                    self.scheduleNext(retry)
+                    let mins = max(1, Int((retry / 60).rounded()))
+                    self.deliverCachedOr(nil,
+                        "local estimate (Claude usage API busy — retrying in ~\(mins) min; it rate-limits frequent checks)",
+                        cachedNote: "API busy")
                 } else if http.statusCode == 200 {
-                    // Token worked but we couldn't map the response — the dump
-                    // file has the shape to teach the parser.
+                    self.scheduleNext(Self.successInterval)
                     self.deliver(nil, "local estimate (Claude API 200 but response not recognized — see usage-debug.json)")
+                } else if http.statusCode >= 500 {
+                    self.scheduleNext(5 * 60)
+                    self.deliverCachedOr(nil, "local estimate (Claude API \(http.statusCode))",
+                                         cachedNote: "API \(http.statusCode)")
                 } else {
+                    self.scheduleNext(5 * 60)
                     self.deliver(nil, "local estimate (Claude API \(http.statusCode))")
                 }
             }
         }
         task.resume()
+    }
+
+    private func scheduleNext(_ seconds: TimeInterval) {
+        nextFetchAt = Date().addingTimeInterval(seconds)
+    }
+
+    /// Escalating back-off for repeated 429s: 5, 10, 20, capped at 30 min.
+    private func backoff() -> TimeInterval {
+        backoffStep = min(backoffStep + 1, 3)
+        let seconds = 300.0 * pow(2.0, Double(backoffStep - 1))
+        return min(1_800.0, seconds)
+    }
+
+    private func retryAfterSeconds(_ http: HTTPURLResponse) -> TimeInterval? {
+        guard let raw = http.value(forHTTPHeaderField: "Retry-After") else { return nil }
+        if let secs = Double(raw.trimmingCharacters(in: .whitespaces)), secs > 0 {
+            return min(1_800.0, secs)
+        }
+        return nil
+    }
+
+    /// If we have a recent real quota, keep showing it (with a small note)
+    /// instead of dropping to a local estimate on a transient failure.
+    private func deliverCachedOr(_ fallback: Quota?, _ fallbackStatus: String, cachedNote: String) {
+        if let quota = lastGoodQuota, let at = lastGoodAt,
+           Date().timeIntervalSince(at) < Self.cacheGoodFor {
+            deliver(quota, "live from Claude API (cached · \(cachedNote))")
+        } else {
+            deliver(fallback, fallbackStatus)
+        }
     }
 
     /// Writes the latest usage response to
