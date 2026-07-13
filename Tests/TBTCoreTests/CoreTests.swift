@@ -270,6 +270,13 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(Fmt.remaining(-10), "0:00")
     }
 
+    func testHoursMinutesFormat() {
+        XCTAssertEqual(Fmt.hoursMinutes(2 * 3600 + 7 * 60), "2h 07m")
+        XCTAssertEqual(Fmt.hoursMinutes(167 * 3600 + 55 * 60), "167h 55m")
+        XCTAssertEqual(Fmt.hoursMinutes(59), "0h 00m")
+        XCTAssertEqual(Fmt.hoursMinutes(-5), "0h 00m")
+    }
+
     func testPercentAndShortModel() {
         XCTAssertEqual(Fmt.percent(0.623), "62%")
         XCTAssertEqual(Fmt.percent(0), "0%")

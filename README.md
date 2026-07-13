@@ -18,13 +18,9 @@ With a pixel pet that runs faster while your tokens burn. 🔥
 
 *The compact widget — pet + 5-hour & weekly limit bars, sized to fit the Control Strip*
 
-<img src="docs/img/fullbar.svg" width="820" alt="Expanded full-width 5h and weekly bars">
+<img src="docs/img/fullbar.svg" width="820" alt="Full-width provider cards: Claude and GPT Codex usage bars with reset countdowns">
 
-*Tap it → full-width bars (or a stats text line — your choice)*
-
-<img src="docs/img/fullbar-saber.svg" width="820" alt="Lightsaber bar style — animated glowing beams">
-
-*…or ignite ⚔️ lightsaber mode: glowing beams that flicker and pulse with your burn rate*
+*Tap it → full-width provider cards: used %, tokens left and the reset countdown per provider (or a stats text line — your choice)*
 
 <img src="docs/img/approval.svg" width="820" alt="Approval bar with Accept / Deny / Pass buttons">
 
@@ -36,9 +32,9 @@ With a pixel pet that runs faster while your tokens burn. 🔥
 
 ## ✨ Features
 
-- 📊 **Limit bars** — live `5h` (Claude's 5-hour session block, with reset time) and `7d` (rolling week) progress bars, percent inside. Bars turn orange at 75 % and red at 90 %. Tap the widget for **full-width bars** across the whole Touch Bar (selectable layout).
-- ⚔️ **Lightsaber mode** — optionally render the bars as glowing animated energy beams (white-hot core, flicker, traveling pulses). Set to *Auto* and the sabers ignite only while you're burning tokens hard.
-- 🤖 **Active model** — the expanded bar and menu show whether you're burning `sonnet-5` or `opus-4-5` money.
+- 📊 **Limit bars** — live `5h` (Claude's 5-hour session block, with reset time) and `7d` (rolling week) progress bars, percent inside. Tap the widget for **full-width provider cards**: per provider a badge, `5h`/`Wk` used percents, capsule bars with a tokens-left label (`15%L`) and a `RESET 2h 07m` countdown — Claude in yellow/orange, Codex in green, red past 90 %.
+- ⚔️ **Lightsaber mode** — optionally render the compact widget's bars as glowing animated energy beams (white-hot core, flicker, traveling pulses). Set to *Auto* and the sabers ignite only while you're burning tokens hard.
+- 🤖 **Active model** — the menu (and the stats-text expanded layout) shows whether you're burning `sonnet-5` or `opus-4-5` money.
 - ✅ **Accept / Deny from the Touch Bar** — a native [Claude Code hook](https://code.claude.com/docs/en/hooks) forwards permission prompts to the bar. Tap **✓ Accept**, **✕ Deny**, or **Pass** to fall back to the terminal. No keyboard injection, no focus stealing.
 - 🧡 **Pixel pets** — Clawd (the Claude Code mascot, always in its terracotta), penguin, dragon, or ghost. Idle when you're idle, sprinting when tokens flow.
 - 🎨 **Themes** — five presets + fully custom colors, with a live preview right in Preferences (works on Macs without a Touch Bar too).
