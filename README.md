@@ -100,7 +100,9 @@ Requests are authenticated with a private token (`~/.claude/touchbar-usage/token
 
 ## 📐 How the limit bars work
 
-**Since v0.4.0 the bars show your real Claude quota whenever possible.** The app reads the Claude Code login that already lives on your Mac (`~/.claude/.credentials.json` or the "Claude Code-credentials" Keychain item — macOS may ask once to allow it) and polls Anthropic's own usage endpoint every minute: the exact same `100% · resets in 57 min` / `13% · resets Sat 05:59` numbers `/usage` shows in Claude Code. The token is only ever sent to `api.anthropic.com`, nowhere else. No login found? It falls back to the local estimates below.
+**Since v0.4.0 the bars show your real Claude quota whenever possible.** The app reads the Claude Code login that already lives on your Mac (`~/.claude/.credentials.json` or the "Claude Code-credentials" Keychain item) and polls Anthropic's own usage endpoint every minute: the exact same `100% · resets in 57 min` / `13% · resets Sat 05:59` numbers `/usage` shows in Claude Code. The token is only ever sent to `api.anthropic.com`, nowhere else.
+
+> **macOS asks once for Keychain access — click "Always Allow".** Clicked Deny, or no prompt showed up? Open the menu bar icon and pick **Refresh Claude Quota**. The "Quota:" line right above it always names the source in use ("live from Claude API ✓" or the exact reason for the fallback). No login on this Mac? The bars fall back to the local estimates below.
 
 - **5h** — Claude-style session blocks (ccusage semantics): a block starts with your first message (floored to the hour), lasts 5 hours; a ≥ 5 h gap starts a new one. Reset time shows in the menu and the full bar.
 - **7d** — rolling 7-day sum.
@@ -138,6 +140,18 @@ Touch Bar hardware required. Don't run Pock/MTMR at the same time — they use t
 <details><summary><b>Claude doesn't ask on the Touch Bar</b></summary>
 
 Hooks load at session start — open a **new** Claude Code session after installing the hook. Check the app is running and the *Setup* tab shows the server listening. Tools auto-allowed by your permission rules still trigger the Touch Bar prompt; use *Auto-pass Bash prefixes* or tighten the tool regex if it's noisy.
+</details>
+
+<details><summary><b>The bars don't match <code>/usage</code></b></summary>
+
+Open the menu bar icon and read the **Quota:** line — it names the source in use:
+
+- **live from Claude API ✓** — the bars are your real quota; if they still look off, wait one minute for the next poll.
+- **Keychain access denied** — pick **Refresh Claude Quota** in the menu and click **Always Allow** on the macOS prompt.
+- **no Claude Code login on this Mac** — log into Claude Code on this machine once, then **Refresh Claude Quota**.
+- **Claude login expired** — open Claude Code once (it refreshes the token), then **Refresh Claude Quota**.
+
+Since the app is ad-hoc signed, each update looks like a new app to macOS, so the Keychain prompt can reappear **once per update**. On a fallback, the bars show local estimates against your own historical maximum — that's why weekly can read 100% even when `/usage` says less.
 </details>
 
 <details><summary><b>Numbers show 0</b></summary>

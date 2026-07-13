@@ -15,6 +15,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     var onInstallHook: (() -> Void)?
     var onTestApproval: (() -> Void)?
     var onPresentBar: (() -> Void)?
+    var onRefreshQuota: (() -> Void)?
     var hookInstalled: (() -> Bool)?
     var serverStatus = "starting…"
     var quotaStatus = "starting…"
@@ -165,6 +166,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
                     + " (\(Fmt.percent(snapshot.weeklyFraction))\(snapshot.weeklyLimitIsAuto ? " of your max" : ""))")
             }
             info("Quota: \(quotaStatus)")
+            action("Refresh Claude Quota", #selector(refreshQuota))
         }
         if let model = snapshot.lastModel {
             info("Model: \(model)")
@@ -227,6 +229,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func toggleWidget() { settings.showWidget.toggle() }
     @objc private func presentBar() { onPresentBar?() }
+    @objc private func refreshQuota() { onRefreshQuota?() }
     @objc private func testApproval() { onTestApproval?() }
     @objc private func installHook() { onInstallHook?() }
     @objc private func openPrefs() { onOpenPreferences?() }
