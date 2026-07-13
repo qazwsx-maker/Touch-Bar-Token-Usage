@@ -142,9 +142,10 @@ Hooks load at session start — open a **new** Claude Code session after install
 
 Open the menu bar icon and read the **Quota:** line — it names the source in use:
 
-- **live from Claude API ✓** — the bars are your real quota; if they still look off, wait one minute for the next poll.
+- **live from Claude API ✓** — the bars are your real quota; if they still look off, wait for the next poll.
+- **Claude usage API busy / 429** — you're already logged in (a 429 means the token was accepted); the app just polled too often and got rate-limited. It backs off automatically and keeps showing your last real numbers — no action needed. It clears itself within a few minutes.
 - **Keychain access denied** — pick **Refresh Claude Quota** in the menu and click **Always Allow** on the macOS prompt.
-- **no Claude Code login on this Mac** — log into Claude Code on this machine once, then **Refresh Claude Quota**.
+- **no Claude Code login on this Mac** — this reads the **Claude Code** (CLI) login, not the Claude *desktop* app. Run the `claude` CLI once and sign in (or you already have if `/usage` works there), then **Refresh Claude Quota**.
 - **Claude login expired** — open Claude Code once (it refreshes the token), then **Refresh Claude Quota**.
 
 Since the app is ad-hoc signed, each update looks like a new app to macOS, so the Keychain prompt can reappear **once per update**. On a fallback the bars stop guessing a percentage and show your **token counts** instead (marked `est`), because a local guess against your own history is not your real quota.

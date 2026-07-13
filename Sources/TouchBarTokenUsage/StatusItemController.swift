@@ -149,7 +149,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
                 info("Weekly (all models): \(Fmt.percent(snapshot.weeklyFraction))"
                     + (weekReset.map { " · \($0)" } ?? ""))
             }
-            info("Quota: live from Claude API ✓")
+            info("Quota: \(quotaStatus) ✓")
         } else {
             // Local estimate. With a custom limit we can show a real percent;
             // on auto there is no true ceiling, so show tokens only — a made-up
