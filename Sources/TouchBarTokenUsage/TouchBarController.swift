@@ -438,7 +438,8 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         if !approvals.isEmpty {
             ids = [.tbtPet, .tbtStats, .flexibleSpace, .tbtApprovalInfo, .tbtDeny, .tbtPass, .tbtAccept, trailing]
         } else if settings.expandedLayoutIsBars {
-            ids = [.tbtPet, .tbtFullBars, .tbtPrefs, trailing]
+            // No Settings button here — the provider cards use every point.
+            ids = [.tbtPet, .tbtFullBars, trailing]
         } else {
             ids = [.tbtPet, .tbtStats, .flexibleSpace, .tbtPrefs, trailing]
         }
@@ -506,45 +507,50 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         }
         statsLabel?.stringValue = text
 
-        // Full-width HUD segments.
+        // Full-width HUD: one provider card per enabled provider.
+        func hudRow(_ title: String, _ fraction: Double, _ hasData: Bool) -> FullBarsDisplay.Row {
+            let pct = Int((max(0, min(1, fraction)) * 100).rounded())
+            return .init(title: title, fraction: fraction, hasData: hasData,
+                         usedText: hasData ? "\(pct)%" : "—",
+                         leftText: hasData ? "\(max(0, 100 - pct))%L" : "—")
+        }
+        // First upcoming reset wins: the 5h block if it has one, else weekly.
+        func hudReset(_ candidates: [(Date?, Bool)]) -> String {
+            for (date, hasData) in candidates {
+                if hasData, let date = date, date > Date() {
+                    return Fmt.hoursMinutes(date.timeIntervalSinceNow)
+                }
+            }
+            return "—"
+        }
+
         var display = FullBarsDisplay()
-        if includeClaude && includeCodex {
-            display.segments = [
-                .init(label: "C·5H", info: info(snapshot.fiveHourFraction, snapshot.fiveHourHasData, cFiveReset),
-                      fraction: snapshot.fiveHourFraction),
-                .init(label: "C·7D", info: info(snapshot.weeklyFraction, snapshot.weeklyHasData, cWeekReset),
-                      fraction: snapshot.weeklyFraction),
-                .init(label: "X·5H", info: info(codexSnapshot.fiveHourFraction, codexSnapshot.fiveHourHasData, xFiveReset),
-                      fraction: codexSnapshot.fiveHourFraction),
-                .init(label: "X·7D", info: info(codexSnapshot.weeklyFraction, codexSnapshot.weeklyHasData, xWeekReset),
-                      fraction: codexSnapshot.weeklyFraction),
-            ]
-        } else if includeCodex {
-            display.segments = [
-                .init(label: "5H", info: info(codexSnapshot.fiveHourFraction, codexSnapshot.fiveHourHasData, xFiveReset),
-                      fraction: codexSnapshot.fiveHourFraction),
-                .init(label: "7D", info: info(codexSnapshot.weeklyFraction, codexSnapshot.weeklyHasData, xWeekReset),
-                      fraction: codexSnapshot.weeklyFraction),
-            ]
-            display.stacks = [
-                .init(title: "TODAY", value: "\(Fmt.abbrev(codexSnapshot.todayTokens)) tok"),
-                .init(title: "MODEL", value: codexSnapshot.lastModel ?? "–"),
-            ]
-        } else {
-            display.segments = [
-                .init(label: "5H", info: info(snapshot.fiveHourFraction, snapshot.fiveHourHasData, cFiveReset),
-                      fraction: snapshot.fiveHourFraction),
-                .init(label: "7D", info: info(snapshot.weeklyFraction, snapshot.weeklyHasData, cWeekReset),
-                      fraction: snapshot.weeklyFraction),
-            ]
-            display.stacks = [
-                .init(title: "TODAY", value: "\(Fmt.abbrev(today.totalTokens)) · \(Fmt.money(today.costUSD))"),
-                .init(title: "MODEL", value: snapshot.lastModel.map { Fmt.shortModel($0) } ?? "–"),
-            ]
+        if includeClaude {
+            let hasAny = snapshot.fiveHourHasData || snapshot.weeklyHasData
+            let live = snapshot.quotaSource == "api"
+            display.clusters.append(.init(
+                kind: .claude,
+                name: "Claude",
+                statusText: live ? "Live" : (hasAny ? "Est." : "—"),
+                tone: live ? .live : (hasAny ? .estimate : .off),
+                rows: [hudRow("5h", snapshot.fiveHourFraction, snapshot.fiveHourHasData),
+                       hudRow("Wk", snapshot.weeklyFraction, snapshot.weeklyHasData)],
+                resetText: hudReset([(snapshot.fiveHourResetAt, snapshot.fiveHourHasData),
+                                     (snapshot.weeklyResetAt, snapshot.weeklyHasData)])))
+        }
+        if includeCodex {
+            let hasAny = codexSnapshot.fiveHourHasData || codexSnapshot.weeklyHasData
+            display.clusters.append(.init(
+                kind: .codex,
+                name: "GPT Codex",
+                statusText: hasAny ? "Live" : "—",
+                tone: hasAny ? .live : .off,
+                rows: [hudRow("5h", codexSnapshot.fiveHourFraction, codexSnapshot.fiveHourHasData),
+                       hudRow("Wk", codexSnapshot.weeklyFraction, codexSnapshot.weeklyHasData)],
+                resetText: hudReset([(codexSnapshot.fiveHourResetAt, codexSnapshot.fiveHourHasData),
+                                     (codexSnapshot.weeklyResetAt, codexSnapshot.weeklyHasData)])))
         }
         fullBarsView?.apply(display: display, theme: settings.theme)
-        // Sync the beam state immediately — don't wait for the next tick.
-        fullBarsView?.animate(frame: frameIndex, saber: saberOn, intensity: saberIntensity)
 
         if let first = approvals.first {
             var info = "🤖 \(first.title): \(first.detail)"
@@ -596,8 +602,10 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             let item = NSCustomTouchBarItem(identifier: identifier)
             let view = FullBarsView(frame: NSRect(x: 0, y: 0, width: 620, height: 30))
             // Let the bar squeeze this view instead of dropping it when the
-            // Touch Bar is narrower than our ideal width.
+            // Touch Bar is narrower than our ideal width — and let it stretch
+            // to claim whatever width is spare (the cards' bars flex).
             view.setContentCompressionResistancePriority(NSLayoutConstraint.Priority(240), for: .horizontal)
+            view.setContentHuggingPriority(NSLayoutConstraint.Priority(240), for: .horizontal)
             fullBarsView = view
             item.view = view
             updateModalContent()

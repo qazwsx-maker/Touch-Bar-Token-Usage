@@ -54,6 +54,13 @@ public enum Fmt {
         return String(format: "%d:%02d", hours, minutes)
     }
 
+    /// 7627s -> "2h 07m" (total hours, zero-padded minutes) — the HUD reset
+    /// countdown style. Negative intervals clamp to "0h 00m".
+    public static func hoursMinutes(_ interval: TimeInterval) -> String {
+        let total = Swift.max(0, Int(interval.rounded()))
+        return "\(total / 3600)h " + String(format: "%02dm", (total % 3600) / 60)
+    }
+
     /// 0.623 -> "62%". Values above 9.99 are capped at "999%".
     public static func percent(_ fraction: Double) -> String {
         let pct = Swift.max(0, Swift.min(fraction, 9.99)) * 100

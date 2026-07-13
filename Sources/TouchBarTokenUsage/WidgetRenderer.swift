@@ -302,116 +302,242 @@ enum WidgetRenderer {
     }
 }
 
-/// Full-width persistent bar, styled after a status-line HUD:
-///   5H ▁▁▁▁▁▁  ↻1:42 · 100%   7D ▁▁▁  ↻Sat 05:59 · 13%   TODAY 1.28M·$4.32   MODEL sonnet-5
-/// Thin 3.5pt tracks with the info line above; width adapts to what the
-/// Touch Bar actually grants (low compression resistance, no hard 720pt).
+/// Full-width persistent HUD, provider-card style:
+///   [✳ Claude ●Live │ 5h 85% ▮▮▮▯ 15%L │ RESET 2h 07m]  [⬡ GPT Codex ●Live │ …]
+/// Each provider gets a badge, its used percentages, capsule bars where the
+/// spent part is colored and the remainder stays pale (with an "N%L" tokens-
+/// left label), and a reset countdown. Width adapts to what the bar grants.
 struct FullBarsDisplay {
-    struct Segment {
-        var label: String
-        var info: String
+    enum Kind { case claude, codex }
+    enum Tone { case live, estimate, off }
+    struct Row {
+        var title: String     // "5h" / "Wk"
         var fraction: Double
+        var hasData: Bool
+        var usedText: String  // "85%" / "—"
+        var leftText: String  // "15%L" / "—"
     }
-    struct Stack {
-        var title: String
-        var value: String
+    struct Cluster {
+        var kind: Kind
+        var name: String
+        var statusText: String  // "Live" / "Est." / "—"
+        var tone: Tone
+        var rows: [Row]
+        var resetText: String   // "2h 07m" / "—"
     }
-    var segments: [Segment] = []
-    var stacks: [Stack] = []
+    var clusters: [Cluster] = []
 }
 
 final class FullBarsView: NSView {
-    private var theme: Theme?
     private var display = FullBarsDisplay()
-    private var saber = false
-    private var animFrame = 0
-    private var intensity: Double = 0
 
     override var intrinsicContentSize: NSSize { NSSize(width: 620, height: 30) }
 
     func apply(display: FullBarsDisplay, theme: Theme) {
         self.display = display
-        self.theme = theme
         needsDisplay = true
     }
 
-    /// Called on every animation tick so the saber beam shimmers.
-    func animate(frame: Int, saber: Bool, intensity: Double) {
-        let wasSaber = self.saber
-        animFrame = frame
-        self.saber = saber
-        self.intensity = intensity
-        if saber || wasSaber {
-            needsDisplay = true
+    /// Kept for the controller's animation tick; this layout is static.
+    func animate(frame: Int, saber: Bool, intensity: Double) {}
+
+    // Fixed HUD palette (the Touch Bar is always black glass).
+    private static let claudeBrand = NSColor(red: 0.85, green: 0.47, blue: 0.34, alpha: 1)   // #D97757
+    private static let yellow = NSColor(red: 1.00, green: 0.84, blue: 0.04, alpha: 1)        // #FFD60A
+    private static let orange = NSColor(red: 1.00, green: 0.62, blue: 0.04, alpha: 1)        // #FF9F0A
+    private static let green = NSColor(red: 0.19, green: 0.82, blue: 0.35, alpha: 1)         // #30D158
+    private static let red = NSColor(red: 1.00, green: 0.27, blue: 0.23, alpha: 1)           // #FF453A
+    private static let remainder = NSColor(red: 0.72, green: 0.78, blue: 0.87, alpha: 0.85)  // pale capsule
+    private static let secondary = NSColor.white.withAlphaComponent(0.55)
+
+    private func fillColor(kind: FullBarsDisplay.Kind, rowIndex: Int, fraction: Double) -> NSColor {
+        if fraction >= 0.9 { return Self.red }
+        switch kind {
+        case .claude: return rowIndex == 0 ? Self.yellow : Self.orange
+        case .codex: return Self.green
         }
+    }
+
+    private func toneColor(_ tone: FullBarsDisplay.Tone) -> NSColor {
+        switch tone {
+        case .live: return Self.green
+        case .estimate: return Self.yellow
+        case .off: return NSColor.white.withAlphaComponent(0.35)
+        }
+    }
+
+    private func str(_ text: String, size: CGFloat, weight: NSFont.Weight,
+                     color: NSColor, mono: Bool = false) -> NSAttributedString {
+        NSAttributedString(string: text, attributes: [
+            .font: mono ? NSFont.monospacedDigitSystemFont(ofSize: size, weight: weight)
+                        : NSFont.systemFont(ofSize: size, weight: weight),
+            .foregroundColor: color,
+        ])
+    }
+
+    // Per-cluster measured column widths.
+    private struct Columns {
+        var name: CGFloat
+        var pct: CGFloat
+        var left: CGFloat
+        var reset: CGFloat
+        var fixed: CGFloat  // everything except the flexible bars
+    }
+
+    private func measure(_ cluster: FullBarsDisplay.Cluster) -> Columns {
+        let nameW = max(str(cluster.name, size: 10.5, weight: .bold, color: .white).size().width,
+                        10 + str(cluster.statusText, size: 7.5, weight: .semibold, color: .white).size().width)
+        var pctW: CGFloat = 0
+        var leftW: CGFloat = 0
+        for row in cluster.rows {
+            let used = str(row.usedText, size: 10.5, weight: .bold, color: .white, mono: true).size().width
+            pctW = max(pctW, 16 + used)
+            leftW = max(leftW, str(row.leftText, size: 7.5, weight: .medium, color: .white, mono: true).size().width)
+        }
+        let resetW = max(str("RESET", size: 6.5, weight: .bold, color: .white).size().width,
+                         str(cluster.resetText, size: 11, weight: .bold, color: .white, mono: true).size().width)
+        // badge 20 + 5 | name | 8 sep 8 | pct | 6 bars 4 | left | 8 sep 8 | reset
+        let fixed = 20 + 5 + nameW + 8 + 1 + 8 + pctW + 6 + 4 + leftW + 8 + 1 + 8 + resetW
+        return Columns(name: nameW, pct: pctW, left: leftW, reset: resetW, fixed: fixed)
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        guard let theme = theme, !display.segments.isEmpty else { return }
-        let gap: CGFloat = 14
-        let stackWidth: CGFloat = 112
-        let stacksTotal = CGFloat(display.stacks.count) * (stackWidth + 6)
-        let segCount = CGFloat(display.segments.count)
-        let segWidth = max(90, (bounds.width - stacksTotal - gap * (segCount - 1)
-            - (display.stacks.isEmpty ? 0 : gap)) / segCount)
+        guard !display.clusters.isEmpty else { return }
+        let clusterGap: CGFloat = 16
+        let columns = display.clusters.map(measure)
+        let fixedTotal = columns.reduce(0) { $0 + $1.fixed }
+        let count = CGFloat(display.clusters.count)
+        let barsWidth = max(36, (bounds.width - fixedTotal - clusterGap * (count - 1) - 2) / count)
 
         var x: CGFloat = 0
-        for (index, segment) in display.segments.enumerated() {
-            drawThinSegment(label: segment.label, info: segment.info, fraction: segment.fraction,
-                            x: x, width: segWidth, theme: theme, frameOffset: index * 17)
-            x += segWidth + gap
-        }
-        if !display.stacks.isEmpty {
-            for stack in display.stacks {
-                drawStack(title: stack.title, value: stack.value, x: x, width: stackWidth, theme: theme)
-                x += stackWidth + 6
-            }
+        for (cluster, cols) in zip(display.clusters, columns) {
+            x = drawCluster(cluster, cols: cols, barsWidth: barsWidth, at: x)
+            x += clusterGap
         }
     }
 
-    private func drawThinSegment(label: String, info: String, fraction: Double,
-                                 x: CGFloat, width: CGFloat, theme: Theme, frameOffset: Int) {
-        let labelString = NSAttributedString(string: label, attributes: [
-            .font: NSFont.systemFont(ofSize: 8.5, weight: .bold),
-            .foregroundColor: theme.secondaryText,
-        ])
-        labelString.draw(at: NSPoint(x: x, y: 11))
-        let labelWidth = labelString.size().width + 6
+    /// Draws one provider card, returns the x just past its right edge.
+    private func drawCluster(_ cluster: FullBarsDisplay.Cluster, cols: Columns,
+                             barsWidth: CGFloat, at x0: CGFloat) -> CGFloat {
+        var x = x0
 
-        let infoString = NSAttributedString(string: info, attributes: [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .semibold),
-            .foregroundColor: theme.text,
-        ])
-        infoString.draw(at: NSPoint(x: x + labelWidth, y: 16))
+        let badgeRect = NSRect(x: x, y: 5, width: 20, height: 20)
+        switch cluster.kind {
+        case .claude: drawClaudeBadge(in: badgeRect)
+        case .codex: drawCodexBadge(in: badgeRect)
+        }
+        x += 25
 
-        let trackRect = NSRect(x: x + labelWidth, y: 6, width: max(30, width - labelWidth), height: 3.5)
-        theme.text.withAlphaComponent(saber ? 0.12 : 0.18).setFill()
-        NSBezierPath(roundedRect: trackRect, xRadius: 1.75, yRadius: 1.75).fill()
+        // Name over "● Live".
+        str(cluster.name, size: 10.5, weight: .bold, color: .white)
+            .draw(at: NSPoint(x: x, y: 15.5))
+        let dotColor = toneColor(cluster.tone)
+        dotColor.setFill()
+        NSBezierPath(ovalIn: NSRect(x: x + 1, y: 6, width: 5, height: 5)).fill()
+        str(cluster.statusText, size: 7.5, weight: .semibold, color: Self.secondary)
+            .draw(at: NSPoint(x: x + 10, y: 4))
+        x += cols.name + 8
 
-        let clamped = max(0, min(1, fraction))
-        if saber {
-            WidgetRenderer.drawSaberBeam(theme: theme, fraction: clamped, in: trackRect,
-                                         frame: animFrame &+ frameOffset, intensity: intensity)
-        } else if clamped > 0 {
-            WidgetRenderer.fillColor(theme: theme, fraction: clamped).setFill()
-            NSBezierPath(roundedRect: NSRect(x: trackRect.minX, y: trackRect.minY,
-                                             width: max(trackRect.height, trackRect.width * CGFloat(clamped)),
-                                             height: trackRect.height),
-                         xRadius: 1.75, yRadius: 1.75).fill()
+        drawSeparator(at: x)
+        x += 9
+
+        // Two rows: titles + bold used percents.
+        let rowTextY: [(title: CGFloat, used: CGFloat)] = [(17.3, 15.7), (3.8, 2.2)]
+        for (index, row) in cluster.rows.prefix(2).enumerated() {
+            str(row.title, size: 8, weight: .semibold, color: Self.secondary)
+                .draw(at: NSPoint(x: x, y: rowTextY[index].title))
+            str(row.usedText, size: 10.5, weight: .bold, color: .white, mono: true)
+                .draw(at: NSPoint(x: x + 16, y: rowTextY[index].used))
+        }
+        x += cols.pct + 6
+
+        // Capsule bars + "%L" left labels.
+        let trackY: [CGFloat] = [19.5, 6]
+        for (index, row) in cluster.rows.prefix(2).enumerated() {
+            let track = NSRect(x: x, y: trackY[index], width: barsWidth, height: 5)
+            drawCapsuleBar(row: row, kind: cluster.kind, rowIndex: index, in: track)
+            str(row.leftText, size: 7.5, weight: .medium, color: Self.secondary, mono: true)
+                .draw(at: NSPoint(x: x + barsWidth + 4, y: trackY[index] - 2))
+        }
+        x += barsWidth + 4 + cols.left + 8
+
+        drawSeparator(at: x)
+        x += 9
+
+        str("RESET", size: 6.5, weight: .bold, color: Self.secondary)
+            .draw(at: NSPoint(x: x, y: 18.5))
+        str(cluster.resetText, size: 11, weight: .bold, color: .white, mono: true)
+            .draw(at: NSPoint(x: x, y: 3.5))
+        x += cols.reset
+
+        return x
+    }
+
+    private func drawSeparator(at x: CGFloat) {
+        NSColor.white.withAlphaComponent(0.14).setFill()
+        NSRect(x: x, y: 4, width: 1, height: 22).fill()
+    }
+
+    /// Used part in the row color, remainder as a pale capsule with a small gap.
+    private func drawCapsuleBar(row: FullBarsDisplay.Row, kind: FullBarsDisplay.Kind,
+                                rowIndex: Int, in rect: NSRect) {
+        let radius = rect.height / 2
+        guard row.hasData else {
+            NSColor.white.withAlphaComponent(0.14).setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return
+        }
+        let fraction = max(0, min(1, row.fraction))
+        let usedWidth: CGFloat = fraction > 0 ? max(rect.height, rect.width * CGFloat(fraction)) : 0
+        if usedWidth > 0 {
+            fillColor(kind: kind, rowIndex: rowIndex, fraction: fraction).setFill()
+            NSBezierPath(roundedRect: NSRect(x: rect.minX, y: rect.minY,
+                                             width: usedWidth, height: rect.height),
+                         xRadius: radius, yRadius: radius).fill()
+        }
+        let remainderX = rect.minX + usedWidth + (usedWidth > 0 ? 2 : 0)
+        if rect.maxX - remainderX > 3 {
+            Self.remainder.setFill()
+            NSBezierPath(roundedRect: NSRect(x: remainderX, y: rect.minY,
+                                             width: rect.maxX - remainderX, height: rect.height),
+                         xRadius: radius, yRadius: radius).fill()
         }
     }
 
-    private func drawStack(title: String, value: String, x: CGFloat, width: CGFloat, theme: Theme) {
-        let titleString = NSAttributedString(string: title, attributes: [
-            .font: NSFont.systemFont(ofSize: 6.5, weight: .bold),
-            .foregroundColor: theme.secondaryText,
-        ])
-        titleString.draw(at: NSPoint(x: x, y: 19))
+    /// Claude: terracotta rounded square with a white starburst.
+    private func drawClaudeBadge(in rect: NSRect) {
+        Self.claudeBrand.setFill()
+        NSBezierPath(roundedRect: rect, xRadius: 5, yRadius: 5).fill()
+        let center = NSPoint(x: rect.midX, y: rect.midY)
+        let radius = rect.width * 0.30
+        NSColor.white.setStroke()
+        for i in 0..<4 {
+            let angle = CGFloat(i) * .pi / 4
+            let ray = NSBezierPath()
+            ray.lineWidth = 1.8
+            ray.lineCapStyle = .round
+            ray.move(to: NSPoint(x: center.x - cos(angle) * radius, y: center.y - sin(angle) * radius))
+            ray.line(to: NSPoint(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius))
+            ray.stroke()
+        }
+    }
 
-        let valueString = NSAttributedString(string: Fmt.truncate(value, max: 24), attributes: [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .semibold),
-            .foregroundColor: theme.text,
-        ])
-        valueString.draw(at: NSPoint(x: x, y: 5))
+    /// Codex: white rounded square with a black knot-style hexagon ring.
+    private func drawCodexBadge(in rect: NSRect) {
+        NSColor.white.setFill()
+        NSBezierPath(roundedRect: rect, xRadius: 5, yRadius: 5).fill()
+        let center = NSPoint(x: rect.midX, y: rect.midY)
+        let radius = rect.width * 0.28
+        let hex = NSBezierPath()
+        hex.lineWidth = 2.0
+        hex.lineJoinStyle = .round
+        for i in 0..<6 {
+            let angle = CGFloat(i) * .pi / 3 + .pi / 6
+            let point = NSPoint(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius)
+            if i == 0 { hex.move(to: point) } else { hex.line(to: point) }
+        }
+        hex.close()
+        NSColor.black.setStroke()
+        hex.stroke()
     }
 }
