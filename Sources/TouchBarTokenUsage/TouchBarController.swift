@@ -655,13 +655,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
         case .tbtFullBars:
             let item = NSCustomTouchBarItem(identifier: identifier)
-            let view = FullBarsView(frame: NSRect(x: 0, y: 0, width: 620, height: 30))
-            // Low resistance + low hugging = stretch to claim the whole spare
-            // width (this is the config that filled the bar edge-to-edge while
-            // the app was frontmost); the view forces its own redraws so it
-            // also paints while the app is in the background.
-            view.setContentCompressionResistancePriority(NSLayoutConstraint.Priority(240), for: .horizontal)
-            view.setContentHuggingPriority(NSLayoutConstraint.Priority(240), for: .horizontal)
+            // Default layout priorities: the image-based view keeps a definite
+            // ~900pt width (never squeezed to zero the way a low-resistance view
+            // was), and 900pt fits alongside the pet + close so it isn't dropped
+            // for overflow. The image composites in the background too.
+            let view = FullBarsView(frame: NSRect(x: 0, y: 0, width: 920, height: 30))
             fullBarsView = view
             item.view = view
             updateModalContent()
