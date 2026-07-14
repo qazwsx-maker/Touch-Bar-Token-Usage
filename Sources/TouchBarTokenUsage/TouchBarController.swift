@@ -655,11 +655,12 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
         case .tbtFullBars:
             let item = NSCustomTouchBarItem(identifier: identifier)
-            let view = FullBarsView(frame: NSRect(x: 0, y: 0, width: 760, height: 30))
-            // Keep the DEFAULT (high) compression resistance so the bar is never
-            // squeezed to zero width (that was the earlier "renders but
-            // invisible" bug). Only LOWER the hugging so it stretches to claim
-            // the whole width the Touch Bar has spare — the cards then span it.
+            let view = FullBarsView(frame: NSRect(x: 0, y: 0, width: 620, height: 30))
+            // Low resistance + low hugging = stretch to claim the whole spare
+            // width (this is the config that filled the bar edge-to-edge while
+            // the app was frontmost); the view forces its own redraws so it
+            // also paints while the app is in the background.
+            view.setContentCompressionResistancePriority(NSLayoutConstraint.Priority(240), for: .horizontal)
             view.setContentHuggingPriority(NSLayoutConstraint.Priority(240), for: .horizontal)
             fullBarsView = view
             item.view = view
