@@ -92,6 +92,8 @@ make install          # needs Xcode Command Line Tools
 | **Pass** / timeout | Falls through to the normal terminal prompt |
 | *(app not running)* | Hook exits silently — zero interference |
 
+**Running in Bypass permissions mode?** The Touch Bar stays out of the way — when Claude Code's permission mode is `bypassPermissions` (or `dontAsk`), the app detects it from the hook and lets every tool run without a prompt, so bypass mode really means zero prompts. Usage bars keep updating as normal.
+
 Requests are authenticated with a private token (`~/.claude/touchbar-usage/token`, mode 600) and the server binds to `127.0.0.1` only.
 
 ## 📐 How the limit bars work
