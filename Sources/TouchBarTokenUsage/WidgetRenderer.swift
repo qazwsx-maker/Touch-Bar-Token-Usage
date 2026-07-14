@@ -353,15 +353,14 @@ final class FullBarsView: NSView {
         super.init(frame: frameRect)
         wantsLayer = true
         imageView.wantsLayer = true
+        imageView.imageFrameStyle = .none
         imageView.imageScaling = .scaleAxesIndependently
-        imageView.translatesAutoresizingMaskIntoConstraints = false
+        // Autoresizing + an explicit non-zero frame (never a zero-frame image
+        // view that stays invisible), exactly like the pet view which renders
+        // reliably. The fixed-size image is stretched to fill this frame.
+        imageView.autoresizingMask = [.width, .height]
+        imageView.frame = bounds
         addSubview(imageView)
-        NSLayoutConstraint.activate([
-            imageView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            imageView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            imageView.topAnchor.constraint(equalTo: topAnchor),
-            imageView.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
     }
 
     required init?(coder: NSCoder) {
@@ -378,6 +377,13 @@ final class FullBarsView: NSView {
     /// Kept for the controller's animation tick; this layout is static.
     func animate(frame: Int, saber: Bool, intensity: Double) {}
 
+    override func layout() {
+        super.layout()
+        imageView.frame = bounds
+    }
+
+    private var didDumpDebug = false
+
     private func renderImage() {
         guard !display.clusters.isEmpty else { return }  // keep last image, never blank
         let size = NSSize(width: Self.renderWidth, height: Self.renderHeight)
@@ -386,6 +392,24 @@ final class FullBarsView: NSView {
         drawContent(width: size.width)
         image.unlockFocus()
         imageView.image = image
+
+        // Once per launch, save what we drew so a "bars still blank" report can
+        // be diagnosed as a draw problem (blank file) vs a display problem
+        // (correct file, but not shown on the bar). No sensitive data.
+        if !didDumpDebug {
+            didDumpDebug = true
+            dumpDebugPNG(image)
+        }
+    }
+
+    private func dumpDebugPNG(_ image: NSImage) {
+        guard let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else { return }
+        let dir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/touchbar-usage")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? png.write(to: dir.appendingPathComponent("fullbar-debug.png"))
     }
 
     // Fixed HUD palette (the Touch Bar is always black glass).
