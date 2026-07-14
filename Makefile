@@ -1,6 +1,6 @@
 APP_NAME := TouchBarTokenUsage
 DIST := dist
-VERSION ?= 0.6.5
+VERSION ?= 0.6.6
 
 .PHONY: all build test app zip install uninstall clean
 
