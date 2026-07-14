@@ -338,80 +338,36 @@ struct FullBarsDisplay {
 /// compact Control-Strip widget already uses reliably.
 final class FullBarsView: NSView {
     private var display = FullBarsDisplay()
-    private let imageView = NSImageView()
 
-    /// Minimum/fallback width. The real render width is the view's actual
-    /// bounds once the Touch Bar has laid it out, so the cards fill the whole
-    /// bar. A low intrinsic keeps it from being dropped for overflow; low
-    /// content-hugging (set by the controller) lets it stretch to fill.
-    private static let minWidth: CGFloat = 620
-    private static let renderHeight: CGFloat = 30
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        wantsLayer = true
-        imageView.wantsLayer = true
-        imageView.imageFrameStyle = .none
-        // scaleNone + an image rendered at the view's own width = exact fill,
-        // nothing to scale or clip. Explicit non-zero frame + autoresizing,
-        // exactly like the pet view which renders reliably.
-        imageView.imageScaling = .scaleNone
-        imageView.imageAlignment = .alignCenter
-        imageView.autoresizingMask = [.width, .height]
-        imageView.frame = bounds
-        addSubview(imageView)
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override var intrinsicContentSize: NSSize { NSSize(width: Self.minWidth, height: Self.renderHeight) }
+    override var intrinsicContentSize: NSSize { NSSize(width: 620, height: 30) }
 
     func apply(display: FullBarsDisplay, theme: Theme) {
         self.display = display
-        renderImage()
+        redrawNow()
     }
 
     /// Kept for the controller's animation tick; this layout is static.
     func animate(frame: Int, saber: Bool, intensity: Double) {}
 
-    override func layout() {
-        super.layout()
-        imageView.frame = bounds
-        renderImage()  // re-render at the real width the bar just granted us
+    /// Draw right into the view. This is what filled the whole bar correctly
+    /// while the app was frontmost. The problem was only that macOS throttles
+    /// the deferred `needsDisplay` draw cycle for a background app (this app is
+    /// almost always in the background), so `redrawNow()` forces a synchronous
+    /// paint whenever the data changes — including while inactive.
+    override func draw(_ dirtyRect: NSRect) {
+        drawContent(width: bounds.width)
     }
 
-    private var didDumpDebug = false
-
-    private func renderImage() {
-        guard !display.clusters.isEmpty else { return }  // keep last image, never blank
-        // Render at the width the bar actually gave us so the cards span the
-        // whole HUD; fall back to the intrinsic width before the first layout.
-        let width = bounds.width >= 200 ? bounds.width : Self.minWidth
-        let image = NSImage(size: NSSize(width: width, height: Self.renderHeight))
-        image.lockFocus()
-        drawContent(width: width)
-        image.unlockFocus()
-        imageView.image = image
-
-        // Once per launch, save what we drew so a "bars still blank" report can
-        // be diagnosed as a draw problem (blank file) vs a display problem
-        // (correct file, but not shown on the bar). No sensitive data.
-        if !didDumpDebug {
-            didDumpDebug = true
-            dumpDebugPNG(image)
+    private func redrawNow() {
+        needsDisplay = true
+        if window != nil {
+            displayIfNeeded()  // synchronous — bypasses the throttled cycle
         }
     }
 
-    private func dumpDebugPNG(_ image: NSImage) {
-        guard let tiff = image.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiff),
-              let png = rep.representation(using: .png, properties: [:]) else { return }
-        let dir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/touchbar-usage")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        try? png.write(to: dir.appendingPathComponent("fullbar-debug.png"))
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        redrawNow()  // paint immediately on present, even while inactive
     }
 
     // Fixed HUD palette (the Touch Bar is always black glass).
@@ -475,7 +431,7 @@ final class FullBarsView: NSView {
     }
 
     /// Draws the whole HUD into the current graphics context, laying the cards
-    /// out across `width` points. Called from `renderImage()` inside an NSImage.
+    /// out across `width` points. Called from `draw(_:)` with the view's bounds.
     private func drawContent(width: CGFloat) {
         guard !display.clusters.isEmpty else { return }
         let clusterGap: CGFloat = 16
