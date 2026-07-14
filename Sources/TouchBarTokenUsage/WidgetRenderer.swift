@@ -340,13 +340,11 @@ final class FullBarsView: NSView {
     private var display = FullBarsDisplay()
     private let imageView = NSImageView()
 
-    /// The HUD is rendered once at this fixed canvas width and then stretched by
-    /// the image view to whatever width the Touch Bar grants. Rendering off a
-    /// fixed size (not `bounds`) means the image is never empty because of
-    /// layout timing, and a plain `.image` assignment composites via Core
-    /// Animation — so it stays visible while the app is inactive, unlike a
-    /// custom `draw(_:)` which the system throttles for background apps.
-    private static let renderWidth: CGFloat = 760
+    /// Minimum/fallback width. The real render width is the view's actual
+    /// bounds once the Touch Bar has laid it out, so the cards fill the whole
+    /// bar. A low intrinsic keeps it from being dropped for overflow; low
+    /// content-hugging (set by the controller) lets it stretch to fill.
+    private static let minWidth: CGFloat = 620
     private static let renderHeight: CGFloat = 30
 
     override init(frame frameRect: NSRect) {
@@ -354,9 +352,9 @@ final class FullBarsView: NSView {
         wantsLayer = true
         imageView.wantsLayer = true
         imageView.imageFrameStyle = .none
-        // Match the pet view exactly (it renders reliably): scaleNone, centred,
-        // an explicit non-zero frame + autoresizing. The image is rendered at
-        // the view's own size so there is nothing to scale or clip.
+        // scaleNone + an image rendered at the view's own width = exact fill,
+        // nothing to scale or clip. Explicit non-zero frame + autoresizing,
+        // exactly like the pet view which renders reliably.
         imageView.imageScaling = .scaleNone
         imageView.imageAlignment = .alignCenter
         imageView.autoresizingMask = [.width, .height]
@@ -368,7 +366,7 @@ final class FullBarsView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    override var intrinsicContentSize: NSSize { NSSize(width: Self.renderWidth, height: Self.renderHeight) }
+    override var intrinsicContentSize: NSSize { NSSize(width: Self.minWidth, height: Self.renderHeight) }
 
     func apply(display: FullBarsDisplay, theme: Theme) {
         self.display = display
@@ -381,16 +379,19 @@ final class FullBarsView: NSView {
     override func layout() {
         super.layout()
         imageView.frame = bounds
+        renderImage()  // re-render at the real width the bar just granted us
     }
 
     private var didDumpDebug = false
 
     private func renderImage() {
         guard !display.clusters.isEmpty else { return }  // keep last image, never blank
-        let size = NSSize(width: Self.renderWidth, height: Self.renderHeight)
-        let image = NSImage(size: size)
+        // Render at the width the bar actually gave us so the cards span the
+        // whole HUD; fall back to the intrinsic width before the first layout.
+        let width = bounds.width >= 200 ? bounds.width : Self.minWidth
+        let image = NSImage(size: NSSize(width: width, height: Self.renderHeight))
         image.lockFocus()
-        drawContent(width: size.width)
+        drawContent(width: width)
         image.unlockFocus()
         imageView.image = image
 

@@ -655,12 +655,12 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
         case .tbtFullBars:
             let item = NSCustomTouchBarItem(identifier: identifier)
-            // Default layout priorities (like the pet, which renders reliably).
-            // The earlier low compression-resistance let the Touch Bar squeeze
-            // this view to zero width — the image rendered fine but was never
-            // visible. A 760pt intrinsic fits comfortably alongside the pet and
-            // close button without being dropped.
             let view = FullBarsView(frame: NSRect(x: 0, y: 0, width: 760, height: 30))
+            // Keep the DEFAULT (high) compression resistance so the bar is never
+            // squeezed to zero width (that was the earlier "renders but
+            // invisible" bug). Only LOWER the hugging so it stretches to claim
+            // the whole width the Touch Bar has spare — the cards then span it.
+            view.setContentHuggingPriority(NSLayoutConstraint.Priority(240), for: .horizontal)
             fullBarsView = view
             item.view = view
             updateModalContent()
