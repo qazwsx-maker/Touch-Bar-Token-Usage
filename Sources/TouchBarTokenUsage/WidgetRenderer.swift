@@ -338,36 +338,55 @@ struct FullBarsDisplay {
 /// compact Control-Strip widget already uses reliably.
 final class FullBarsView: NSView {
     private var display = FullBarsDisplay()
+    private let imageView = NSImageView()
 
-    override var intrinsicContentSize: NSSize { NSSize(width: 620, height: 30) }
+    /// A custom `draw(_:)` paints full-width but only while the app is active —
+    /// macOS suspends the draw cycle for a background app (this app is almost
+    /// always in the background). An image shown through a layer-backed
+    /// NSImageView composites via Core Animation, which keeps working while
+    /// inactive — exactly how the pet view stays visible everywhere. So the HUD
+    /// is drawn into a fixed-width image and shown that way; the width is chosen
+    /// to nearly fill the bar without being wide enough for NSTouchBar to drop.
+    private static let renderWidth: CGFloat = 920
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        imageView.wantsLayer = true
+        imageView.imageFrameStyle = .none
+        imageView.imageScaling = .scaleNone
+        imageView.imageAlignment = .alignCenter
+        imageView.autoresizingMask = [.width, .height]
+        imageView.frame = bounds
+        addSubview(imageView)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var intrinsicContentSize: NSSize { NSSize(width: Self.renderWidth, height: 30) }
 
     func apply(display: FullBarsDisplay, theme: Theme) {
         self.display = display
-        redrawNow()
+        renderImage()
     }
 
     /// Kept for the controller's animation tick; this layout is static.
     func animate(frame: Int, saber: Bool, intensity: Double) {}
 
-    /// Draw right into the view. This is what filled the whole bar correctly
-    /// while the app was frontmost. The problem was only that macOS throttles
-    /// the deferred `needsDisplay` draw cycle for a background app (this app is
-    /// almost always in the background), so `redrawNow()` forces a synchronous
-    /// paint whenever the data changes — including while inactive.
-    override func draw(_ dirtyRect: NSRect) {
-        drawContent(width: bounds.width)
+    override func layout() {
+        super.layout()
+        imageView.frame = bounds
     }
 
-    private func redrawNow() {
-        needsDisplay = true
-        if window != nil {
-            displayIfNeeded()  // synchronous — bypasses the throttled cycle
-        }
-    }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        redrawNow()  // paint immediately on present, even while inactive
+    private func renderImage() {
+        guard !display.clusters.isEmpty else { return }
+        let image = NSImage(size: NSSize(width: Self.renderWidth, height: 30))
+        image.lockFocus()
+        drawContent(width: Self.renderWidth)
+        image.unlockFocus()
+        imageView.image = image
     }
 
     // Fixed HUD palette (the Touch Bar is always black glass).
