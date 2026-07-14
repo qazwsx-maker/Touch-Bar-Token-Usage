@@ -340,18 +340,28 @@ final class FullBarsView: NSView {
     private var display = FullBarsDisplay()
     private let imageView = NSImageView()
 
+    /// The HUD is rendered once at this fixed canvas width and then stretched by
+    /// the image view to whatever width the Touch Bar grants. Rendering off a
+    /// fixed size (not `bounds`) means the image is never empty because of
+    /// layout timing, and a plain `.image` assignment composites via Core
+    /// Animation — so it stays visible while the app is inactive, unlike a
+    /// custom `draw(_:)` which the system throttles for background apps.
+    private static let renderWidth: CGFloat = 980
+    private static let renderHeight: CGFloat = 30
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        // Layer-backed so the image composites via Core Animation (which keeps
-        // updating while the app is inactive) rather than the view `draw()`
-        // cycle (which the system throttles for background apps).
         wantsLayer = true
         imageView.wantsLayer = true
-        imageView.imageScaling = .scaleNone
-        imageView.imageAlignment = .alignLeft
-        imageView.autoresizingMask = [.width, .height]
-        imageView.frame = bounds
+        imageView.imageScaling = .scaleAxesIndependently
+        imageView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(imageView)
+        NSLayoutConstraint.activate([
+            imageView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            imageView.topAnchor.constraint(equalTo: topAnchor),
+            imageView.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
     }
 
     required init?(coder: NSCoder) {
@@ -368,18 +378,9 @@ final class FullBarsView: NSView {
     /// Kept for the controller's animation tick; this layout is static.
     func animate(frame: Int, saber: Bool, intensity: Double) {}
 
-    override func layout() {
-        super.layout()
-        imageView.frame = bounds
-        renderImage()  // re-render once the Touch Bar has given us a real width
-    }
-
     private func renderImage() {
-        let size = bounds.size
-        guard size.width >= 2, size.height >= 2, !display.clusters.isEmpty else {
-            imageView.image = nil
-            return
-        }
+        guard !display.clusters.isEmpty else { return }  // keep last image, never blank
+        let size = NSSize(width: Self.renderWidth, height: Self.renderHeight)
         let image = NSImage(size: size)
         image.lockFocus()
         drawContent(width: size.width)
