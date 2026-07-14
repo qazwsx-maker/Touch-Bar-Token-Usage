@@ -78,6 +78,20 @@ public enum ApprovalSummarizer {
         return ToolSummary(title: title, detail: Fmt.truncate(detail, max: 90))
     }
 
+    /// Claude Code permission modes in which the user has already turned
+    /// prompting off — the Touch Bar must not re-introduce an approval prompt
+    /// (PreToolUse hooks still fire in these modes, so we have to opt out
+    /// ourselves). `bypassPermissions` is the "run everything" mode; `dontAsk`
+    /// is its non-destructive sibling.
+    public static func modeSkipsApproval(_ permissionMode: String?) -> Bool {
+        switch permissionMode {
+        case "bypassPermissions", "dontAsk":
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Same semantics as Claude Code hook matchers: regex, full match, "" or "*" = all.
     public static func toolMatches(_ toolName: String, pattern: String) -> Bool {
         let trimmed = pattern.trimmingCharacters(in: .whitespaces)

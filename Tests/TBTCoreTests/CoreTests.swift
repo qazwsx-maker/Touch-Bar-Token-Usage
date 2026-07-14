@@ -372,6 +372,16 @@ final class CoreTests: XCTestCase {
         XCTAssertNil(CodexParser.parseLine("not json rate_limits"))
     }
 
+    func testModeSkipsApproval() {
+        XCTAssertTrue(ApprovalSummarizer.modeSkipsApproval("bypassPermissions"))
+        XCTAssertTrue(ApprovalSummarizer.modeSkipsApproval("dontAsk"))
+        XCTAssertFalse(ApprovalSummarizer.modeSkipsApproval("default"))
+        XCTAssertFalse(ApprovalSummarizer.modeSkipsApproval("acceptEdits"))
+        XCTAssertFalse(ApprovalSummarizer.modeSkipsApproval("plan"))
+        XCTAssertFalse(ApprovalSummarizer.modeSkipsApproval(nil))
+        XCTAssertFalse(ApprovalSummarizer.modeSkipsApproval(""))
+    }
+
     // MARK: - Hook script
 
     func testHookScriptContent() {

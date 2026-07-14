@@ -232,6 +232,15 @@ final class ApprovalServer {
     }
 
     private func handlePreToolUse(_ object: [String: Any], connection: NWConnection) {
+        // Honour Claude's own permission mode: if the user is running with
+        // prompting turned off (Bypass permissions / "don't ask"), don't put an
+        // approval prompt on the Touch Bar — let the tool run. The hook still
+        // fires in these modes, so we have to opt out here.
+        if ApprovalSummarizer.modeSkipsApproval(object["permission_mode"] as? String) {
+            send(connection, status: 204, body: nil)
+            return
+        }
+
         let toolName = (object["tool_name"] as? String) ?? "Tool"
         let toolInput = (object["tool_input"] as? [String: Any]) ?? [:]
 
