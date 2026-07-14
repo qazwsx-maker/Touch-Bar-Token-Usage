@@ -346,7 +346,7 @@ final class FullBarsView: NSView {
     /// layout timing, and a plain `.image` assignment composites via Core
     /// Animation — so it stays visible while the app is inactive, unlike a
     /// custom `draw(_:)` which the system throttles for background apps.
-    private static let renderWidth: CGFloat = 980
+    private static let renderWidth: CGFloat = 760
     private static let renderHeight: CGFloat = 30
 
     override init(frame frameRect: NSRect) {
@@ -354,10 +354,11 @@ final class FullBarsView: NSView {
         wantsLayer = true
         imageView.wantsLayer = true
         imageView.imageFrameStyle = .none
-        imageView.imageScaling = .scaleAxesIndependently
-        // Autoresizing + an explicit non-zero frame (never a zero-frame image
-        // view that stays invisible), exactly like the pet view which renders
-        // reliably. The fixed-size image is stretched to fill this frame.
+        // Match the pet view exactly (it renders reliably): scaleNone, centred,
+        // an explicit non-zero frame + autoresizing. The image is rendered at
+        // the view's own size so there is nothing to scale or clip.
+        imageView.imageScaling = .scaleNone
+        imageView.imageAlignment = .alignCenter
         imageView.autoresizingMask = [.width, .height]
         imageView.frame = bounds
         addSubview(imageView)
@@ -367,7 +368,7 @@ final class FullBarsView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    override var intrinsicContentSize: NSSize { NSSize(width: 620, height: 30) }
+    override var intrinsicContentSize: NSSize { NSSize(width: Self.renderWidth, height: Self.renderHeight) }
 
     func apply(display: FullBarsDisplay, theme: Theme) {
         self.display = display
